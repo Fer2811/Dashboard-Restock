@@ -708,7 +708,7 @@
       document.querySelectorAll(".tab-content").forEach(tabContent => tabContent.classList.remove("active"));
 
       document.getElementById(`tab-${tab}`).classList.add("active");
-      document.getElementById(contenido-${tab}).classList.add("active");
+      document.getElementById(`contenido-${tab}`).classList.add("active");
 
       btnAgregar.style.display = tab === "resumen" ? "none" : "inline-block";
     }
@@ -747,7 +747,7 @@
     }
 
     function renderizarPersona(personaKey) {
-      const tbody = document.getElementById(tabla-${personaKey});
+      const tbody = document.getElementById(`tabla-${personaKey}`);
       const dataPersona = rowsCache[personaKey] || {};
       const entradas = Object.entries(dataPersona).sort((a, b) => {
         const creadoA = a[1].creadoEn || "";
@@ -893,7 +893,7 @@
 
         cambiarTab(tabActiva);
 
-        const tbody = document.getElementById(tabla-${tabActiva});
+        const tbody = document.getElementById(`tabla-${tabActiva}`);
         const primeraFila = tbody.querySelector("tr[data-id]");
         if (primeraFila) {
           const inputFecha = primeraFila.querySelector(".campo-fecha");
@@ -908,13 +908,13 @@
     }
 
     async function guardarRestock(personaKey, id) {
-      const fila = document.querySelector(tr[data-persona="${personaKey}"][data-id="${id}"]);
+      const fila = document.querySelector(`tr[data-persona="${personaKey}"][data-id="${id}"]`);
       if (!fila) return;
 
       const data = obtenerDatosRestock(fila);
 
       try {
-        await update(ref(db, restockDashboard/rows/${personaKey}/${id}), {
+        await update(ref(db, `restockDashboard/rows/${personaKey}/${id}`), {
           ...data,
           actualizadoEn: new Date().toISOString()
         });
@@ -961,7 +961,7 @@
       if (!confirmar) return;
 
       try {
-        await remove(ref(db, restockDashboard/rows/${personaKey}/${id}));
+        await remove(ref(db, `restockDashboard/rows/${personaKey}/${id}`));
 
         await recargarDatos();
         cambiarTab(personaKey);
@@ -1051,7 +1051,7 @@
       fila.dataset.iq = iq;
       fila.dataset.key = key;
 
-      const roiText = grupo.roiPromedio === null ? "-" : ${redondear(grupo.roiPromedio)}%;
+      const roiText = grupo.roiPromedio === null ? "-" : `${redondear(grupo.roiPromedio)}%`;
       const roiClass = grupo.roiPromedio !== null && grupo.roiPromedio >= 15 ? "roi-green" : "";
 
       fila.innerHTML = `
@@ -1133,13 +1133,13 @@
     }
 
     async function guardarResumenFila(key) {
-      const fila = tablaResumen.querySelector(tr[data-key="${key}"]);
+      const fila = tablaResumen.querySelector(`tr[data-key="${key}"]`);
       if (!fila) return;
 
       const data = obtenerDatosResumen(fila);
 
       try {
-        await update(ref(db, restockDashboard/summary/${key}), {
+        await update(ref(db, `restockDashboard/summary/${key}`), {
           ...data,
           actualizadoEn: new Date().toISOString()
         });
@@ -1170,7 +1170,7 @@
         const data = obtenerDatosResumen(fila);
 
         promesas.push(
-          update(ref(db, restockDashboard/summary/${key}), {
+          update(ref(db, `restockDashboard/summary/${key}`), {
             ...data,
             actualizadoEn: new Date().toISOString()
           })
@@ -1247,7 +1247,7 @@
 
     function formatearPiezas(numero) {
       const valor = redondear(numero);
-      return ${valor} pzs;
+      return `${valor} pzs`;
     }
 
     function formatearROI(input) {
@@ -1255,7 +1255,7 @@
       if (texto === "") return;
 
       const numero = obtenerNumero(texto);
-      if (!isNaN(numero)) input.value = ${redondear(numero)}%;
+      if (!isNaN(numero)) input.value = `${redondear(numero)}%`;
     }
 
     function formatearPrecio(input) {
@@ -1263,7 +1263,7 @@
       if (texto === "") return;
 
       const numero = obtenerNumero(texto);
-      if (!isNaN(numero)) input.value = $${redondear(numero)};
+      if (!isNaN(numero)) input.value = `$${redondear(numero)}`;
     }
 
     function redondear(numero) {
@@ -1313,7 +1313,7 @@
           iq,
           grupo.producto || "",
           formatearPiezas(grupo.cantidadTotal),
-          grupo.roiPromedio === null ? "" : ${redondear(grupo.roiPromedio)}%,
+          grupo.roiPromedio === null ? "" : `${redondear(grupo.roiPromedio)}%`,
           saved.precioMinimo || "",
           saved.proveedor || "",
           saved.pedido ? "Sí" : "No",
@@ -1335,7 +1335,7 @@
       const fechaArchivo = new Date().toISOString().slice(0, 10);
 
       link.href = url;
-      link.download = Dashboard_Restock_${fechaArchivo}.csv;
+      link.download = `Dashboard_Restock_${fechaArchivo}.csv`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -1350,7 +1350,8 @@
       const texto = String(valor ?? "");
 
       if (texto.includes(";") || texto.includes('"') || texto.includes("\n")) {
-        return "${texto.replace(/"/g, '""')}";
+        return `"${texto.replace(/"/g, '""')}"`;
+
       }
 
       return texto;
