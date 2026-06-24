@@ -1,0 +1,1378 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <title>Dashboard Restock</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      font-family: Arial, sans-serif;
+    }
+
+    body {
+      margin: 0;
+      background: #f4f6f9;
+      color: #111827;
+    }
+
+    .dashboard {
+      width: 95%;
+      max-width: 1500px;
+      margin: 40px auto;
+      background: #ffffff;
+      border-radius: 16px;
+      padding: 28px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+    }
+
+    .dashboard-header {
+      margin-bottom: 20px;
+    }
+
+    .dashboard-header h1 {
+      margin: 0;
+      font-size: 28px;
+    }
+
+    .dashboard-header p {
+      margin: 6px 0 0;
+      color: #6b7280;
+      font-size: 14px;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 22px;
+    }
+
+    .tab-btn {
+      border: none;
+      border-radius: 10px;
+      padding: 11px 18px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      color: #ffffff;
+      opacity: 0.75;
+    }
+
+    .tab-btn.active {
+      opacity: 1;
+      box-shadow: 0 0 0 3px rgba(17, 24, 39, 0.18);
+    }
+
+    .tab-summary {
+      background: #111827;
+    }
+
+    .tab-gaston {
+      background: #f97316;
+    }
+
+    .tab-rebeca {
+      background: #2563eb;
+    }
+
+    .tab-mariana {
+      background: #ec4899;
+    }
+
+    .tab-sairet {
+      background: #7c3aed;
+    }
+
+    .tab-emiliano {
+      background: #16a34a;
+    }
+
+    .tab-angel {
+      background: #6b7280;
+    }
+
+    .status {
+      font-size: 13px;
+      color: #6b7280;
+      margin-bottom: 16px;
+    }
+
+    .status.ok {
+      color: #16a34a;
+    }
+
+    .status.error {
+      color: #dc2626;
+    }
+
+    .status.warning {
+      color: #d97706;
+    }
+
+    .metric-card {
+      width: 100%;
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      border-radius: 14px;
+      padding: 20px 24px;
+      margin-bottom: 18px;
+      display: flex;
+      justify-content: space-between;
+      gap: 20px;
+      align-items: center;
+    }
+
+    .metric-title {
+      color: #6b7280;
+      font-size: 15px;
+      margin-bottom: 6px;
+    }
+
+    .metric-main {
+      font-size: 24px;
+    }
+
+    .metric-values {
+      display: flex;
+      gap: 36px;
+      align-items: center;
+    }
+
+    .metric-item span {
+      display: block;
+      color: #6b7280;
+      font-size: 13px;
+      margin-bottom: 4px;
+    }
+
+    .metric-item strong {
+      font-size: 28px;
+      color: #111827;
+    }
+
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    .table-container {
+      width: 100%;
+      max-height: 540px;
+      overflow: auto;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
+
+    .summary-table {
+      min-width: 1350px;
+    }
+
+    .restock-table {
+      min-width: 950px;
+    }
+
+    thead {
+      background: #111827;
+      color: #ffffff;
+    }
+
+    thead th {
+      position: sticky;
+      top: 0;
+      background: #111827;
+      z-index: 2;
+    }
+
+    th,
+    td {
+      padding: 14px;
+      text-align: left;
+      border-bottom: 1px solid #e5e7eb;
+      vertical-align: middle;
+    }
+
+    th {
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .summary-table th:nth-child(1),
+    .summary-table td:nth-child(1) {
+      width: 140px;
+    }
+
+    .summary-table th:nth-child(2),
+    .summary-table td:nth-child(2) {
+      width: 100px;
+    }
+
+    .summary-table th:nth-child(3),
+    .summary-table td:nth-child(3) {
+      width: 340px;
+    }
+
+    .summary-table th:nth-child(4),
+    .summary-table td:nth-child(4) {
+      width: 130px;
+    }
+
+    .summary-table th:nth-child(5),
+    .summary-table td:nth-child(5) {
+      width: 130px;
+    }
+
+    .summary-table th:nth-child(6),
+    .summary-table td:nth-child(6) {
+      width: 140px;
+    }
+
+    .summary-table th:nth-child(7),
+    .summary-table td:nth-child(7) {
+      width: 180px;
+    }
+
+    .summary-table th:nth-child(8),
+    .summary-table td:nth-child(8) {
+      width: 90px;
+      text-align: center;
+    }
+
+    .summary-table th:nth-child(9),
+    .summary-table td:nth-child(9) {
+      width: 170px;
+      text-align: center;
+    }
+
+    .summary-table th:nth-child(10),
+    .summary-table td:nth-child(10) {
+      width: 130px;
+    }
+
+    .restock-table th:nth-child(1),
+    .restock-table td:nth-child(1) {
+      width: 150px;
+    }
+
+    .restock-table th:nth-child(2),
+    .restock-table td:nth-child(2) {
+      width: 120px;
+    }
+
+    .restock-table th:nth-child(3),
+    .restock-table td:nth-child(3) {
+      width: 400px;
+    }
+
+    .restock-table th:nth-child(4),
+    .restock-table td:nth-child(4) {
+      width: 150px;
+    }
+
+    .restock-table th:nth-child(5),
+    .restock-table td:nth-child(5) {
+      width: 120px;
+    }
+
+    .restock-table th:nth-child(6),
+    .restock-table td:nth-child(6) {
+      width: 140px;
+    }
+
+    td input {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      font-size: 14px;
+      background: #ffffff;
+    }
+
+    td input:focus {
+      outline: none;
+      border-color: #2563eb;
+      box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+    }
+
+    input:disabled {
+      background: #f3f4f6;
+      color: #6b7280;
+      cursor: not-allowed;
+    }
+
+    .checkbox-cell input,
+    .paid-box input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      cursor: pointer;
+    }
+
+    .paid-box {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .paid-box input[type="date"] {
+      width: 140px;
+      font-size: 13px;
+      padding: 8px;
+    }
+
+    .readonly {
+      display: block;
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .roi-green {
+      color: #16a34a;
+      font-weight: 800;
+    }
+
+    .fila-pendiente {
+      background: #fffbeb;
+    }
+
+    .actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+      margin-top: 24px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      border: none;
+      border-radius: 10px;
+      padding: 12px 22px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      color: #ffffff;
+    }
+
+    .btn-refresh {
+      background: #111827;
+    }
+
+    .btn-save {
+      background: #16a34a;
+    }
+
+    .btn-add {
+      background: #2563eb;
+    }
+
+    .btn-export {
+      background: #0f766e;
+    }
+
+    .row-buttons {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .btn-row-save,
+    .btn-row-delete {
+      border: none;
+      border-radius: 8px;
+      padding: 9px 12px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      color: #ffffff;
+      white-space: nowrap;
+    }
+
+    .btn-row-save {
+      background: #111827;
+    }
+
+    .btn-row-delete {
+      background: #dc2626;
+    }
+
+    .empty-message {
+      text-align: center;
+      color: #6b7280;
+      padding: 28px;
+      font-size: 14px;
+    }
+
+    @media (max-width: 768px) {
+      .dashboard {
+        width: 98%;
+        padding: 18px;
+      }
+
+      .metric-card {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .metric-values {
+        width: 100%;
+        justify-content: space-between;
+      }
+
+      .actions {
+        flex-direction: column;
+      }
+
+      .btn {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <main class="dashboard">
+
+    <section class="dashboard-header">
+      <h1>Dashboard de Recompra / Restock</h1>
+      <p>Captura de productos de recompra por responsable y consolidado general automático.</p>
+    </section>
+
+    <section class="tabs">
+      <button class="tab-btn tab-summary active" id="tab-resumen" onclick="cambiarTab('resumen')">Suma de todos</button>
+      <button class="tab-btn tab-gaston" id="tab-gaston" onclick="cambiarTab('gaston')">Restock Gastón</button>
+      <button class="tab-btn tab-rebeca" id="tab-rebeca" onclick="cambiarTab('rebeca')">Restock Rebeca</button>
+      <button class="tab-btn tab-mariana" id="tab-mariana" onclick="cambiarTab('mariana')">Restock Mariana</button>
+      <button class="tab-btn tab-sairet" id="tab-sairet" onclick="cambiarTab('sairet')">Restock Sairet</button>
+      <button class="tab-btn tab-emiliano" id="tab-emiliano" onclick="cambiarTab('emiliano')">Restock Emiliano</button>
+      <button class="tab-btn tab-angel" id="tab-angel" onclick="cambiarTab('angel')">Restock Ángel</button>
+    </section>
+
+    <section class="metric-card">
+      <div>
+        <div class="metric-title">Total general restock</div>
+        <strong class="metric-main" id="totalGeneral">0 pzs</strong>
+      </div>
+
+      <div class="metric-values">
+        <div class="metric-item">
+          <span>IQ distintos</span>
+          <strong id="iqDistintos">0</strong>
+        </div>
+
+        <div class="metric-item">
+          <span>Filas capturadas</span>
+          <strong id="filasCapturadas">0</strong>
+        </div>
+      </div>
+    </section>
+
+    <div id="estadoConexion" class="status">Conectando con Firebase...</div>
+
+    <datalist id="iqOptions"></datalist>
+
+    <section id="contenido-resumen" class="tab-content active">
+      <section class="table-container">
+        <table class="summary-table">
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>IQ</th>
+              <th>Producto</th>
+              <th>Cantidad total</th>
+              <th>ROI promedio</th>
+              <th>Precio mínimo</th>
+              <th>Proveedor</th>
+              <th>Pedido</th>
+              <th>Pagado</th>
+              <th>Acción</th>
+            </tr>
+          </thead>
+
+          <tbody id="tablaResumen"></tbody>
+        </table>
+      </section>
+    </section>
+
+    <section id="contenido-gaston" class="tab-content"></section>
+    <section id="contenido-rebeca" class="tab-content"></section>
+    <section id="contenido-mariana" class="tab-content"></section>
+    <section id="contenido-sairet" class="tab-content"></section>
+    <section id="contenido-emiliano" class="tab-content"></section>
+    <section id="contenido-angel" class="tab-content"></section>
+
+    <section class="actions">
+      <button class="btn btn-refresh" onclick="recargarDatos()">Actualizar</button>
+      <button class="btn btn-save" onclick="guardarResumenTodo()">Guardar resumen</button>
+      <button class="btn btn-export" onclick="exportarCSV()">Exportar CSV</button>
+      <button class="btn btn-add" id="btnAgregar" onclick="agregarRestockActivo()">Agregar Restock</button>
+    </section>
+
+  </main>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
+
+    import {
+      getDatabase,
+      ref,
+      push,
+      set,
+      update,
+      get,
+      remove
+    } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-database.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyCeX3qJ-XsG70nJuknbPO553dIgo4lxfYQ",
+      authDomain: "dashboard-po.firebaseapp.com",
+      databaseURL: "https://dashboard-po-default-rtdb.firebaseio.com/",
+      projectId: "dashboard-po",
+      storageBucket: "dashboard-po.firebasestorage.app",
+      messagingSenderId: "442676711411",
+      appId: "1:442676711411:web:dca7afd452b62149400c86",
+      measurementId: "G-NEE7RCEK5F"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+
+    const rowsBaseRef = ref(db, "restockDashboard/rows");
+    const summaryBaseRef = ref(db, "restockDashboard/summary");
+
+    const PERSONAS = [
+      { key: "gaston", nombre: "Gastón" },
+      { key: "rebeca", nombre: "Rebeca" },
+      { key: "mariana", nombre: "Mariana" },
+      { key: "sairet", nombre: "Sairet" },
+      { key: "emiliano", nombre: "Emiliano" },
+      { key: "angel", nombre: "Ángel" }
+    ];
+
+    let tabActiva = "resumen";
+    let rowsCache = {};
+    let summaryCache = {};
+    let catalogoIQ = new Map();
+
+    const tablaResumen = document.getElementById("tablaResumen");
+    const totalGeneral = document.getElementById("totalGeneral");
+    const iqDistintos = document.getElementById("iqDistintos");
+    const filasCapturadas = document.getElementById("filasCapturadas");
+    const estadoConexion = document.getElementById("estadoConexion");
+    const btnAgregar = document.getElementById("btnAgregar");
+
+    window.cambiarTab = cambiarTab;
+    window.recargarDatos = recargarDatos;
+    window.agregarRestockActivo = agregarRestockActivo;
+    window.guardarRestock = guardarRestock;
+    window.eliminarRestock = eliminarRestock;
+    window.guardarResumenFila = guardarResumenFila;
+    window.guardarResumenTodo = guardarResumenTodo;
+    window.exportarCSV = exportarCSV;
+
+    function crearTablasRestock() {
+      PERSONAS.forEach(persona => {
+        const contenedor = document.getElementById(contenido-${persona.key});
+
+        contenedor.innerHTML = `
+          <section class="table-container">
+            <table class="restock-table">
+              <thead>
+                <tr>
+                  <th>Fecha</th>
+                  <th>IQ</th>
+                  <th>Producto</th>
+                  <th>Cantidad restock</th>
+                  <th>ROI</th>
+                  <th>Acción</th>
+                </tr>
+              </thead>
+
+              <tbody id="tabla-${persona.key}"></tbody>
+            </table>
+          </section>
+        `;
+      });
+    }
+
+    async function cargarCatalogoIQ() {
+      try {
+        const response = await fetch("codigos.csv");
+
+        if (!response.ok) {
+          throw new Error("No se encontró codigos.csv");
+        }
+
+        const text = await response.text();
+        const data = parseCSV(text);
+
+        catalogoIQ.clear();
+
+        data.forEach(row => {
+          const iq = String(row.CODIGO || "").trim();
+          const producto = String(row.Producto || "").trim();
+
+          if (iq) {
+            catalogoIQ.set(iq.toUpperCase(), producto);
+          }
+        });
+
+        const datalist = document.getElementById("iqOptions");
+        datalist.innerHTML = "";
+
+        [...catalogoIQ.keys()].sort((a, b) => {
+          const numA = obtenerNumero(a);
+          const numB = obtenerNumero(b);
+
+          if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+
+          return a.localeCompare(b);
+        }).forEach(iq => {
+          const option = document.createElement("option");
+          option.value = iq;
+          datalist.appendChild(option);
+        });
+
+        estadoConexion.textContent = "Catálogo de IQ cargado correctamente.";
+        estadoConexion.className = "status ok";
+
+      } catch (error) {
+        estadoConexion.textContent = "No se encontró codigos.csv. Puedes capturar IQ y Producto manualmente.";
+        estadoConexion.className = "status warning";
+        console.warn(error);
+      }
+    }
+
+    function parseCSV(text) {
+      const lines = text.split(/\r?\n/).filter(line => line.trim() !== "");
+      if (lines.length === 0) return [];
+
+      const firstLine = lines[0];
+      const delimiter = firstLine.split(";").length > firstLine.split(",").length ? ";" : ",";
+
+      const headers = parseCSVLine(lines[0], delimiter).map(h => h.trim());
+
+      return lines.slice(1).map(line => {
+        const values = parseCSVLine(line, delimiter);
+        const row = {};
+
+        headers.forEach((header, index) => {
+          row[header] = values[index] || "";
+        });
+
+        return row;
+      });
+    }
+
+    function parseCSVLine(line, delimiter) {
+      const result = [];
+      let current = "";
+      let inQuotes = false;
+
+      for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+        const nextChar = line[i + 1];
+
+        if (char === '"' && inQuotes && nextChar === '"') {
+          current += '"';
+          i++;
+        } else if (char === '"') {
+          inQuotes = !inQuotes;
+        } else if (char === delimiter && !inQuotes) {
+          result.push(current);
+          current = "";
+        } else {
+          current += char;
+        }
+      }
+
+      result.push(current);
+      return result;
+    }
+
+    function cambiarTab(tab) {
+      tabActiva = tab;
+
+      document.querySelectorAll(".tab-btn").forEach(btn => btn.classList.remove("active"));
+      document.querySelectorAll(".tab-content").forEach(tabContent => tabContent.classList.remove("active"));
+
+      document.getElementById(tab-${tab}).classList.add("active");
+      document.getElementById(contenido-${tab}).classList.add("active");
+
+      btnAgregar.style.display = tab === "resumen" ? "none" : "inline-block";
+    }
+
+    async function recargarDatos() {
+      if (hayCambiosPendientes()) {
+        const confirmar = confirm("Tienes cambios sin guardar. Si actualizas, se perderán. ¿Quieres continuar?");
+        if (!confirmar) return;
+      }
+
+      estadoConexion.textContent = "Actualizando datos...";
+      estadoConexion.className = "status";
+
+      try {
+        const rowsSnap = await get(rowsBaseRef);
+        const summarySnap = await get(summaryBaseRef);
+
+        rowsCache = rowsSnap.val() || {};
+        summaryCache = summarySnap.val() || {};
+
+        renderizarTodo();
+
+        estadoConexion.textContent = "Datos actualizados correctamente.";
+        estadoConexion.className = "status ok";
+      } catch (error) {
+        estadoConexion.textContent = "Error al actualizar datos.";
+        estadoConexion.className = "status error";
+        console.error(error);
+      }
+    }
+
+    function renderizarTodo() {
+      PERSONAS.forEach(persona => renderizarPersona(persona.key));
+      renderizarResumen();
+      actualizarMetricas();
+    }
+
+    function renderizarPersona(personaKey) {
+      const tbody = document.getElementById(tabla-${personaKey});
+      const dataPersona = rowsCache[personaKey] || {};
+      const entradas = Object.entries(dataPersona).sort((a, b) => {
+        const creadoA = a[1].creadoEn || "";
+        const creadoB = b[1].creadoEn || "";
+        return creadoB.localeCompare(creadoA);
+      });
+
+      tbody.innerHTML = "";
+
+      if (entradas.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="6" class="empty-message">
+              No hay productos capturados en esta pestaña. Da clic en “Agregar Restock”.
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      entradas.forEach(([id, data]) => {
+        crearFilaRestock(tbody, personaKey, id, data);
+      });
+    }
+
+    function crearFilaRestock(tbody, personaKey, id, data) {
+      const fila = document.createElement("tr");
+      fila.dataset.id = id;
+      fila.dataset.persona = personaKey;
+
+      fila.innerHTML = `
+        <td>
+          <input type="date" class="campo-fecha">
+        </td>
+
+        <td>
+          <input type="text" class="campo-iq" list="iqOptions" placeholder="IQ">
+        </td>
+
+        <td>
+          <input type="text" class="campo-producto" placeholder="Producto">
+        </td>
+
+        <td>
+          <input type="text" class="campo-cantidad" placeholder="0 pzs">
+        </td>
+
+        <td>
+          <input type="text" class="campo-roi" placeholder="0%">
+        </td>
+
+        <td>
+          <div class="row-buttons">
+            <button class="btn-row-save" onclick="guardarRestock('${personaKey}', '${id}')">Guardar</button>
+            <button class="btn-row-delete" onclick="eliminarRestock('${personaKey}', '${id}')">Eliminar</button>
+          </div>
+        </td>
+      `;
+
+      const inputFecha = fila.querySelector(".campo-fecha");
+      const inputIQ = fila.querySelector(".campo-iq");
+      const inputProducto = fila.querySelector(".campo-producto");
+      const inputCantidad = fila.querySelector(".campo-cantidad");
+      const inputROI = fila.querySelector(".campo-roi");
+
+      inputFecha.value = data.fecha || "";
+      inputIQ.value = data.iq || "";
+      inputProducto.value = data.producto || "";
+      inputCantidad.value = data.cantidadRestock || "";
+      inputROI.value = data.roi || "";
+
+      completarProductoDesdeIQ(inputIQ, inputProducto);
+      formatearCantidad(inputCantidad);
+      formatearROI(inputROI);
+
+      fila.querySelectorAll("input").forEach(input => {
+        input.addEventListener("input", () => {
+          fila.classList.add("fila-pendiente");
+
+          if (input.classList.contains("campo-iq")) {
+            completarProductoDesdeIQ(inputIQ, inputProducto);
+          }
+
+          estadoConexion.textContent = "Hay cambios sin guardar.";
+          estadoConexion.className = "status warning";
+        });
+
+        input.addEventListener("change", () => {
+          fila.classList.add("fila-pendiente");
+
+          if (input.classList.contains("campo-iq")) {
+            completarProductoDesdeIQ(inputIQ, inputProducto);
+          }
+
+          estadoConexion.textContent = "Hay cambios sin guardar.";
+          estadoConexion.className = "status warning";
+        });
+      });
+
+      inputCantidad.addEventListener("blur", () => formatearCantidad(inputCantidad));
+      inputROI.addEventListener("blur", () => formatearROI(inputROI));
+
+      tbody.appendChild(fila);
+    }
+
+    function completarProductoDesdeIQ(inputIQ, inputProducto) {
+      const iq = String(inputIQ.value || "").trim().toUpperCase();
+
+      if (!iq) return;
+
+      inputIQ.value = iq;
+
+      const productoCatalogo = catalogoIQ.get(iq);
+
+      if (productoCatalogo && !inputProducto.value.trim()) {
+        inputProducto.value = productoCatalogo;
+      }
+    }
+
+    async function agregarRestockActivo() {
+      if (tabActiva === "resumen") return;
+
+      if (hayCambiosPendientes()) {
+        const confirmar = confirm("Tienes cambios sin guardar. Si agregas una fila nueva se actualizará la tabla. ¿Quieres continuar?");
+        if (!confirmar) return;
+      }
+
+      try {
+        const personaRef = ref(db, restockDashboard/rows/${tabActiva});
+        const nuevaFilaRef = push(personaRef);
+
+        await set(nuevaFilaRef, {
+          fecha: "",
+          iq: "",
+          producto: "",
+          cantidadRestock: "",
+          roi: "",
+          creadoEn: new Date().toISOString(),
+          actualizadoEn: new Date().toISOString()
+        });
+
+        await recargarDatos();
+
+        cambiarTab(tabActiva);
+
+        const tbody = document.getElementById(tabla-${tabActiva});
+        const primeraFila = tbody.querySelector("tr[data-id]");
+        if (primeraFila) {
+          const inputFecha = primeraFila.querySelector(".campo-fecha");
+          if (inputFecha) inputFecha.focus();
+        }
+
+      } catch (error) {
+        estadoConexion.textContent = "Error al agregar restock.";
+        estadoConexion.className = "status error";
+        console.error(error);
+      }
+    }
+
+    async function guardarRestock(personaKey, id) {
+      const fila = document.querySelector(tr[data-persona="${personaKey}"][data-id="${id}"]);
+      if (!fila) return;
+
+      const data = obtenerDatosRestock(fila);
+
+      try {
+        await update(ref(db, restockDashboard/rows/${personaKey}/${id}), {
+          ...data,
+          actualizadoEn: new Date().toISOString()
+        });
+
+        rowsCache[personaKey] = rowsCache[personaKey] || {};
+        rowsCache[personaKey][id] = {
+          ...(rowsCache[personaKey][id] || {}),
+          ...data,
+          actualizadoEn: new Date().toISOString()
+        };
+
+        fila.classList.remove("fila-pendiente");
+
+        renderizarResumen();
+        actualizarMetricas();
+
+        estadoConexion.textContent = "Fila guardada correctamente.";
+        estadoConexion.className = "status ok";
+      } catch (error) {
+        estadoConexion.textContent = "Error al guardar fila.";
+        estadoConexion.className = "status error";
+        console.error(error);
+      }
+    }
+
+    function obtenerDatosRestock(fila) {
+      const inputCantidad = fila.querySelector(".campo-cantidad");
+      const inputROI = fila.querySelector(".campo-roi");
+
+      formatearCantidad(inputCantidad);
+      formatearROI(inputROI);
+
+      return {
+        fecha: fila.querySelector(".campo-fecha").value,
+        iq: fila.querySelector(".campo-iq").value.trim().toUpperCase(),
+        producto: fila.querySelector(".campo-producto").value.trim(),
+        cantidadRestock: inputCantidad.value,
+        roi: inputROI.value
+      };
+    }
+
+    async function eliminarRestock(personaKey, id) {
+      const confirmar = confirm("¿Seguro que quieres eliminar esta fila?");
+      if (!confirmar) return;
+
+      try {
+        await remove(ref(db, restockDashboard/rows/${personaKey}/${id}));
+
+        await recargarDatos();
+        cambiarTab(personaKey);
+
+        estadoConexion.textContent = "Fila eliminada correctamente.";
+        estadoConexion.className = "status ok";
+      } catch (error) {
+        estadoConexion.textContent = "Error al eliminar fila.";
+        estadoConexion.className = "status error";
+        console.error(error);
+      }
+    }
+
+    function construirResumen() {
+      const grupos = {};
+
+      PERSONAS.forEach(persona => {
+        const dataPersona = rowsCache[persona.key] || {};
+
+        Object.values(dataPersona).forEach(row => {
+          const iq = String(row.iq || "").trim().toUpperCase();
+
+          if (!iq) return;
+
+          if (!grupos[iq]) {
+            grupos[iq] = {
+              iq,
+              producto: row.producto || catalogoIQ.get(iq) || "",
+              fechas: [],
+              cantidadTotal: 0,
+              rois: []
+            };
+          }
+
+          if (row.fecha) grupos[iq].fechas.push(row.fecha);
+
+          const cantidad = obtenerNumero(row.cantidadRestock);
+          if (!isNaN(cantidad)) grupos[iq].cantidadTotal += cantidad;
+
+          const roi = obtenerNumero(row.roi);
+          if (!isNaN(roi)) grupos[iq].rois.push(roi);
+
+          if (!grupos[iq].producto && row.producto) {
+            grupos[iq].producto = row.producto;
+          }
+        });
+      });
+
+      Object.values(grupos).forEach(grupo => {
+        grupo.fechas.sort();
+        grupo.fecha = grupo.fechas[0] || "";
+        grupo.roiPromedio = grupo.rois.length
+          ? grupo.rois.reduce((a, b) => a + b, 0) / grupo.rois.length
+          : null;
+      });
+
+      return grupos;
+    }
+
+    function renderizarResumen() {
+      const grupos = construirResumen();
+      const entradas = Object.entries(grupos).sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true }));
+
+      tablaResumen.innerHTML = "";
+
+      if (entradas.length === 0) {
+        tablaResumen.innerHTML = `
+          <tr>
+            <td colspan="10" class="empty-message">
+              Todavía no hay productos de restock capturados.
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      entradas.forEach(([iq, grupo]) => {
+        crearFilaResumen(iq, grupo);
+      });
+    }
+
+    function crearFilaResumen(iq, grupo) {
+      const key = safeKey(iq);
+      const saved = summaryCache[key] || {};
+
+      const fila = document.createElement("tr");
+      fila.dataset.iq = iq;
+      fila.dataset.key = key;
+
+      const roiText = grupo.roiPromedio === null ? "-" : ${redondear(grupo.roiPromedio)}%;
+      const roiClass = grupo.roiPromedio !== null && grupo.roiPromedio >= 15 ? "roi-green" : "";
+
+      fila.innerHTML = `
+        <td>
+          <span class="readonly">${grupo.fecha || "-"}</span>
+        </td>
+
+        <td>
+          <span class="readonly">${escaparHTML(iq)}</span>
+        </td>
+
+        <td>
+          <span class="readonly">${escaparHTML(grupo.producto || "-")}</span>
+        </td>
+
+        <td>
+          <span class="readonly">${formatearPiezas(grupo.cantidadTotal)}</span>
+        </td>
+
+        <td>
+          <span class="readonly ${roiClass}">${roiText}</span>
+        </td>
+
+        <td>
+          <input type="text" class="campo-precio-minimo" placeholder="$0">
+        </td>
+
+        <td>
+          <input type="text" class="campo-proveedor" placeholder="Proveedor">
+        </td>
+
+        <td class="checkbox-cell">
+          <input type="checkbox" class="campo-pedido">
+        </td>
+
+        <td>
+          <div class="paid-box">
+            <input type="checkbox" class="campo-pagado">
+            <input type="date" class="campo-fecha-pago">
+          </div>
+        </td>
+
+        <td>
+          <button class="btn-row-save" onclick="guardarResumenFila('${key}')">Guardar</button>
+        </td>
+      `;
+
+      const inputPrecio = fila.querySelector(".campo-precio-minimo");
+      const inputProveedor = fila.querySelector(".campo-proveedor");
+      const inputPedido = fila.querySelector(".campo-pedido");
+      const inputPagado = fila.querySelector(".campo-pagado");
+      const inputFechaPago = fila.querySelector(".campo-fecha-pago");
+
+      inputPrecio.value = saved.precioMinimo || "";
+      inputProveedor.value = saved.proveedor || "";
+      inputPedido.checked = saved.pedido || false;
+      inputPagado.checked = saved.pagado || false;
+      inputFechaPago.value = saved.fechaPago || "";
+
+      formatearPrecio(inputPrecio);
+
+      fila.querySelectorAll("input").forEach(input => {
+        input.addEventListener("input", () => {
+          fila.classList.add("fila-pendiente");
+          estadoConexion.textContent = "Hay cambios sin guardar.";
+          estadoConexion.className = "status warning";
+        });
+
+        input.addEventListener("change", () => {
+          fila.classList.add("fila-pendiente");
+          estadoConexion.textContent = "Hay cambios sin guardar.";
+          estadoConexion.className = "status warning";
+        });
+      });
+
+      inputPrecio.addEventListener("blur", () => formatearPrecio(inputPrecio));
+
+      tablaResumen.appendChild(fila);
+    }
+
+    async function guardarResumenFila(key) {
+      const fila = tablaResumen.querySelector(tr[data-key="${key}"]);
+      if (!fila) return;
+
+      const data = obtenerDatosResumen(fila);
+
+      try {
+        await update(ref(db, restockDashboard/summary/${key}), {
+          ...data,
+          actualizadoEn: new Date().toISOString()
+        });
+
+        summaryCache[key] = {
+          ...(summaryCache[key] || {}),
+          ...data,
+          actualizadoEn: new Date().toISOString()
+        };
+
+        fila.classList.remove("fila-pendiente");
+
+        estadoConexion.textContent = "Resumen guardado correctamente.";
+        estadoConexion.className = "status ok";
+      } catch (error) {
+        estadoConexion.textContent = "Error al guardar resumen.";
+        estadoConexion.className = "status error";
+        console.error(error);
+      }
+    }
+
+    async function guardarResumenTodo() {
+      const filas = tablaResumen.querySelectorAll("tr[data-key]");
+      const promesas = [];
+
+      filas.forEach(fila => {
+        const key = fila.dataset.key;
+        const data = obtenerDatosResumen(fila);
+
+        promesas.push(
+          update(ref(db, restockDashboard/summary/${key}), {
+            ...data,
+            actualizadoEn: new Date().toISOString()
+          })
+        );
+
+        summaryCache[key] = {
+          ...(summaryCache[key] || {}),
+          ...data
+        };
+      });
+
+      try {
+        await Promise.all(promesas);
+
+        filas.forEach(fila => fila.classList.remove("fila-pendiente"));
+
+        estadoConexion.textContent = "Resumen completo guardado correctamente.";
+        estadoConexion.className = "status ok";
+      } catch (error) {
+        estadoConexion.textContent = "Error al guardar resumen completo.";
+        estadoConexion.className = "status error";
+        console.error(error);
+      }
+    }
+
+    function obtenerDatosResumen(fila) {
+      const inputPrecio = fila.querySelector(".campo-precio-minimo");
+      formatearPrecio(inputPrecio);
+
+      return {
+        iq: fila.dataset.iq,
+        precioMinimo: inputPrecio.value,
+        proveedor: fila.querySelector(".campo-proveedor").value,
+        pedido: fila.querySelector(".campo-pedido").checked,
+        pagado: fila.querySelector(".campo-pagado").checked,
+        fechaPago: fila.querySelector(".campo-fecha-pago").value
+      };
+    }
+
+    function actualizarMetricas() {
+      const grupos = construirResumen();
+      const totalPiezas = Object.values(grupos).reduce((total, grupo) => total + grupo.cantidadTotal, 0);
+
+      let filas = 0;
+      PERSONAS.forEach(persona => {
+        filas += Object.keys(rowsCache[persona.key] || {}).length;
+      });
+
+      totalGeneral.textContent = formatearPiezas(totalPiezas);
+      iqDistintos.textContent = Object.keys(grupos).length;
+      filasCapturadas.textContent = filas;
+    }
+
+    function obtenerNumero(valor) {
+      return parseFloat(
+        String(valor)
+          .replace("IQ", "")
+          .replace("pzs", "")
+          .replace("pz", "")
+          .replace("$", "")
+          .replace("%", "")
+          .replace(",", "")
+          .trim()
+      );
+    }
+
+    function formatearCantidad(input) {
+      const texto = String(input.value).trim();
+      if (texto === "") return;
+
+      const numero = obtenerNumero(texto);
+      if (!isNaN(numero)) input.value = formatearPiezas(numero);
+    }
+
+    function formatearPiezas(numero) {
+      const valor = redondear(numero);
+      return ${valor} pzs;
+    }
+
+    function formatearROI(input) {
+      const texto = String(input.value).trim();
+      if (texto === "") return;
+
+      const numero = obtenerNumero(texto);
+      if (!isNaN(numero)) input.value = ${redondear(numero)}%;
+    }
+
+    function formatearPrecio(input) {
+      const texto = String(input.value).trim();
+      if (texto === "") return;
+
+      const numero = obtenerNumero(texto);
+      if (!isNaN(numero)) input.value = $${redondear(numero)};
+    }
+
+    function redondear(numero) {
+      const valor = Math.round(numero * 100) / 100;
+      return Number.isInteger(valor) ? valor : valor.toFixed(2);
+    }
+
+    function safeKey(texto) {
+      return encodeURIComponent(String(texto).trim().toUpperCase());
+    }
+
+    function hayCambiosPendientes() {
+      return document.querySelectorAll(".fila-pendiente").length > 0;
+    }
+
+    function exportarCSV() {
+      const grupos = construirResumen();
+      const entradas = Object.entries(grupos).sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true }));
+
+      if (entradas.length === 0) {
+        estadoConexion.textContent = "No hay información para exportar.";
+        estadoConexion.className = "status warning";
+        return;
+      }
+
+      const encabezados = [
+        "Fecha",
+        "IQ",
+        "Producto",
+        "Cantidad total",
+        "ROI promedio",
+        "Precio mínimo",
+        "Proveedor",
+        "Pedido",
+        "Pagado",
+        "Fecha de pago"
+      ];
+
+      const datos = [];
+
+      entradas.forEach(([iq, grupo]) => {
+        const key = safeKey(iq);
+        const saved = summaryCache[key] || {};
+
+        datos.push([
+          grupo.fecha || "",
+          iq,
+          grupo.producto || "",
+          formatearPiezas(grupo.cantidadTotal),
+          grupo.roiPromedio === null ? "" : ${redondear(grupo.roiPromedio)}%,
+          saved.precioMinimo || "",
+          saved.proveedor || "",
+          saved.pedido ? "Sí" : "No",
+          saved.pagado ? "Sí" : "No",
+          saved.fechaPago || ""
+        ]);
+      });
+
+      const contenidoCSV = [encabezados, ...datos]
+        .map(fila => fila.map(valor => escaparCSV(valor)).join(";"))
+        .join("\n");
+
+      const blob = new Blob(["\uFEFF" + contenidoCSV], {
+        type: "text/csv;charset=utf-8;"
+      });
+
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      const fechaArchivo = new Date().toISOString().slice(0, 10);
+
+      link.href = url;
+      link.download = Dashboard_Restock_${fechaArchivo}.csv;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      URL.revokeObjectURL(url);
+
+      estadoConexion.textContent = "Archivo exportado correctamente.";
+      estadoConexion.className = "status ok";
+    }
+
+    function escaparCSV(valor) {
+      const texto = String(valor ?? "");
+
+      if (texto.includes(";") || texto.includes('"') || texto.includes("\n")) {
+        return "${texto.replace(/"/g, '""')}";
+      }
+
+      return texto;
+    }
+
+    function escaparHTML(texto) {
+      return String(texto)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    async function iniciarDashboard() {
+      crearTablasRestock();
+      await cargarCatalogoIQ();
+      await recargarDatos();
+      cambiarTab("resumen");
+    }
+
+    iniciarDashboard();
+  </script>
+</body>
+</html>
