@@ -406,6 +406,93 @@
       background: #0f766e;
     }
 
+    .btn-admin {
+      background: #7c3aed;
+    }
+
+    .btn-admin.is-active {
+      background: #16a34a;
+    }
+
+    .btn-row-modify {
+      border: none;
+      border-radius: 8px;
+      padding: 9px 12px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      color: #ffffff;
+      white-space: nowrap;
+      background: #7c3aed;
+    }
+
+    /* ── Modal contraseña administrador ── */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(17, 24, 39, 0.55);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      padding: 16px;
+    }
+
+    .modal-overlay.visible {
+      display: flex;
+    }
+
+    .modal-box {
+      background: #ffffff;
+      border-radius: 14px;
+      padding: 26px;
+      width: 100%;
+      max-width: 360px;
+      box-shadow: 0 12px 36px rgba(0, 0, 0, 0.25);
+    }
+
+    .modal-box h2 {
+      margin: 0 0 6px;
+      font-size: 18px;
+    }
+
+    .modal-box p {
+      margin: 0 0 16px;
+      font-size: 13px;
+      color: #6b7280;
+    }
+
+    .modal-box input {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      font-size: 14px;
+      margin-bottom: 10px;
+    }
+
+    .modal-error {
+      color: #dc2626;
+      font-size: 13px;
+      margin: -4px 0 10px;
+      min-height: 16px;
+    }
+
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+
+    .modal-actions .btn {
+      padding: 9px 16px;
+      font-size: 14px;
+    }
+
+    .btn-cancel {
+      background: #6b7280;
+    }
+
     .row-buttons {
       display: flex;
       flex-direction: column;
@@ -604,6 +691,7 @@
     <section id="contenido-angel" class="tab-content"></section>
 
     <section class="actions">
+      <button class="btn btn-admin" id="btnAdmin" onclick="abrirModalAdmin()">ADMINISTRADOR</button>
       <button class="btn btn-refresh" onclick="recargarDatos()">Actualizar</button>
       <button class="btn btn-save" onclick="guardarResumenTodo()">Guardar resumen</button>
       <button class="btn btn-export" onclick="exportarCSV()">Exportar CSV</button>
@@ -611,6 +699,19 @@
     </section>
 
   </main>
+
+  <div class="modal-overlay" id="modalAdmin">
+    <div class="modal-box">
+      <h2>Acceso de administrador</h2>
+      <p>Ingresa la contraseña para poder modificar filas congeladas.</p>
+      <input type="password" id="inputPasswordAdmin" placeholder="Contraseña" autocomplete="off">
+      <div class="modal-error" id="errorPasswordAdmin"></div>
+      <div class="modal-actions">
+        <button class="btn btn-cancel" onclick="cerrarModalAdmin()">Cancelar</button>
+        <button class="btn btn-admin" onclick="validarPasswordAdmin()">Ingresar</button>
+      </div>
+    </div>
+  </div>
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
@@ -663,6 +764,12 @@
     let catalogoIQ = new Map();
     let catalogoDetalle = new Map();
     let indiceBusqueda = [];
+    let esAdmin = false;
+    let filasDesbloqueadas = new Set();
+
+    // ── Contraseña única de administrador ──
+    // Cambia este valor por la contraseña que quieras usar.
+    const ADMIN_PASSWORD = "admin2024";
 
     const tablaResumen = document.getElementById("tablaResumen");
     const totalGeneral = document.getElementById("totalGeneral");
@@ -670,6 +777,10 @@
     const filasCapturadas = document.getElementById("filasCapturadas");
     const estadoConexion = document.getElementById("estadoConexion");
     const btnAgregar = document.getElementById("btnAgregar");
+    const btnAdmin = document.getElementById("btnAdmin");
+    const modalAdmin = document.getElementById("modalAdmin");
+    const inputPasswordAdmin = document.getElementById("inputPasswordAdmin");
+    const errorPasswordAdmin = document.getElementById("errorPasswordAdmin");
 
     window.cambiarTab = cambiarTab;
     window.recargarDatos = recargarDatos;
@@ -679,6 +790,10 @@
     window.guardarResumenFila = guardarResumenFila;
     window.guardarResumenTodo = guardarResumenTodo;
     window.exportarCSV = exportarCSV;
+    window.abrirModalAdmin = abrirModalAdmin;
+    window.cerrarModalAdmin = cerrarModalAdmin;
+    window.validarPasswordAdmin = validarPasswordAdmin;
+    window.activarModificarFila = activarModificarFila;
 
     function crearTablasRestock() {
       PERSONAS.forEach(persona => {
@@ -938,6 +1053,64 @@
 
       result.push(current);
       return result;
+    }
+
+    // ── Administrador: modal de contraseña y desbloqueo de filas congeladas ──
+    function abrirModalAdmin() {
+      if (esAdmin) {
+        // Si ya es admin, el botón sirve para salir del modo administrador
+        esAdmin = false;
+        filasDesbloqueadas.clear();
+        btnAdmin.textContent = "ADMINISTRADOR";
+        btnAdmin.classList.remove("is-active");
+        renderizarResumen();
+        estadoConexion.textContent = "Modo administrador desactivado.";
+        estadoConexion.className = "status";
+        return;
+      }
+
+      errorPasswordAdmin.textContent = "";
+      inputPasswordAdmin.value = "";
+      modalAdmin.classList.add("visible");
+      setTimeout(() => inputPasswordAdmin.focus(), 50);
+    }
+
+    function cerrarModalAdmin() {
+      modalAdmin.classList.remove("visible");
+    }
+
+    function validarPasswordAdmin() {
+      const valor = inputPasswordAdmin.value;
+
+      if (valor === ADMIN_PASSWORD) {
+        esAdmin = true;
+        btnAdmin.textContent = "ADMINISTRADOR ✓";
+        btnAdmin.classList.add("is-active");
+        cerrarModalAdmin();
+        renderizarResumen();
+        estadoConexion.textContent = "Modo administrador activado.";
+        estadoConexion.className = "status ok";
+      } else {
+        errorPasswordAdmin.textContent = "Contraseña incorrecta.";
+      }
+    }
+
+    inputPasswordAdmin?.addEventListener("keydown", e => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        validarPasswordAdmin();
+      }
+    });
+
+    modalAdmin?.addEventListener("click", e => {
+      if (e.target === modalAdmin) cerrarModalAdmin();
+    });
+
+    // Habilita temporalmente la edición de una fila congelada específica.
+    // No afecta a la fila "activa" donde se siguen acumulando los pedidos nuevos.
+    function activarModificarFila(key) {
+      filasDesbloqueadas.add(key);
+      renderizarResumen();
     }
 
     function cambiarTab(tab) {
@@ -1575,19 +1748,35 @@
       const iq = grupo.iq;
       const saved = summaryCache[key] || {};
       const congelado = grupo.congelado || false;
+      const desbloqueada = congelado && esAdmin && filasDesbloqueadas.has(key);
+      // Los campos están bloqueados si la fila está congelada y NO ha sido
+      // desbloqueada por el administrador. El checkbox "Pedido" siempre
+      // permanece bloqueado en filas congeladas para no romper la cantidad
+      // congelada ni afectar la fila activa donde se siguen sumando pedidos nuevos.
+      const camposBloqueados = congelado && !desbloqueada;
 
       const fila = document.createElement("tr");
       fila.dataset.iq = iq;
       fila.dataset.key = key;
       if (congelado) fila.classList.add("fila-congelada");
+      if (desbloqueada) fila.classList.add("fila-desbloqueada");
 
       const roiText = grupo.roiPromedio === null ? "-" : `${redondear(grupo.roiPromedio)}%`;
       const roiClass = grupo.roiPromedio !== null && grupo.roiPromedio >= 15 ? "roi-green" : "";
 
       // Badge visual para filas congeladas (ya pedidas)
       const badgeCongelado = congelado
-        ? `<span class="badge-congelado">🔒 Pedido</span>`
+        ? `<span class="badge-congelado">🔒 Pedido${desbloqueada ? " (editando)" : ""}</span>`
         : "";
+
+      let celdaAccion;
+      if (congelado && esAdmin && !desbloqueada) {
+        celdaAccion = `<button class="btn-row-modify" onclick="activarModificarFila('${key}')">Modificar</button>`;
+      } else if (congelado && !desbloqueada) {
+        celdaAccion = `<span class="readonly" style="color:#6b7280;font-size:12px;">Congelado</span>`;
+      } else {
+        celdaAccion = `<button class="btn-row-save" onclick="guardarResumenFila('${key}')">Guardar</button>`;
+      }
 
       fila.innerHTML = `
         <td>
@@ -1612,11 +1801,11 @@
         </td>
 
         <td>
-          <input type="text" class="campo-precio-minimo" placeholder="$0" ${congelado ? "disabled" : ""}>
+          <input type="text" class="campo-precio-minimo" placeholder="$0" ${camposBloqueados ? "disabled" : ""}>
         </td>
 
         <td>
-          <input type="text" class="campo-proveedor" placeholder="Proveedor" ${congelado ? "disabled" : ""}>
+          <input type="text" class="campo-proveedor" placeholder="Proveedor" ${camposBloqueados ? "disabled" : ""}>
         </td>
 
         <td class="checkbox-cell">
@@ -1625,16 +1814,13 @@
 
         <td>
           <div class="paid-box">
-            <input type="checkbox" class="campo-pagado" ${congelado ? "disabled" : ""}>
-            <input type="date" class="campo-fecha-pago" ${congelado ? "disabled" : ""}>
+            <input type="checkbox" class="campo-pagado" ${camposBloqueados ? "disabled" : ""}>
+            <input type="date" class="campo-fecha-pago" ${camposBloqueados ? "disabled" : ""}>
           </div>
         </td>
 
         <td>
-          ${congelado
-            ? `<span class="readonly" style="color:#6b7280;font-size:12px;">Congelado</span>`
-            : `<button class="btn-row-save" onclick="guardarResumenFila('${key}')">Guardar</button>`
-          }
+          ${celdaAccion}
         </td>
       `;
 
@@ -1652,8 +1838,8 @@
 
       formatearPrecio(inputPrecio);
 
-      if (!congelado) {
-        fila.querySelectorAll("input").forEach(input => {
+      if (!camposBloqueados) {
+        fila.querySelectorAll("input:not(:disabled)").forEach(input => {
           input.addEventListener("input", () => {
             fila.classList.add("fila-pendiente");
             estadoConexion.textContent = "Hay cambios sin guardar.";
@@ -1698,6 +1884,7 @@
         };
 
         fila.classList.remove("fila-pendiente");
+        filasDesbloqueadas.delete(key);
 
         // Re-renderizar para aplicar el estado congelado visualmente
         renderizarResumen();
@@ -1715,9 +1902,13 @@
     }
 
     async function guardarResumenTodo() {
-      // Solo guardar filas no congeladas (las congeladas ya están guardadas en Firebase)
-      const filas = tablaResumen.querySelectorAll("tr[data-key]:not(.fila-congelada)");
+      // Guardar filas no congeladas, más las filas congeladas que el
+      // administrador haya desbloqueado explícitamente para edición.
+      const filas = tablaResumen.querySelectorAll(
+        "tr[data-key]:not(.fila-congelada), tr[data-key].fila-desbloqueada"
+      );
       const promesas = [];
+      const keysGuardadas = [];
 
       filas.forEach(fila => {
         const key = fila.dataset.key;
@@ -1734,12 +1925,15 @@
           ...(summaryCache[key] || {}),
           ...data
         };
+
+        keysGuardadas.push(key);
       });
 
       try {
         await Promise.all(promesas);
 
-        filas.forEach(fila => fila.classList.remove("fila-pendiente"));
+        keysGuardadas.forEach(key => filasDesbloqueadas.delete(key));
+        renderizarResumen();
 
         estadoConexion.textContent = "Resumen completo guardado correctamente.";
         estadoConexion.className = "status ok";
