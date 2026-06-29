@@ -32,6 +32,18 @@
       margin-bottom: 20px;
     }
 
+    .dashboard-header-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+    }
+
+    .dashboard-header-top .btn-admin {
+      flex-shrink: 0;
+      white-space: nowrap;
+    }
+
     .dashboard-header h1 {
       margin: 0;
       font-size: 28px;
@@ -598,6 +610,14 @@
         padding: 18px;
       }
 
+      .dashboard-header-top {
+        flex-direction: column;
+      }
+
+      .dashboard-header-top .btn-admin {
+        width: 100%;
+      }
+
       .metric-card {
         flex-direction: column;
         align-items: flex-start;
@@ -623,8 +643,13 @@
   <main class="dashboard">
 
     <section class="dashboard-header">
-      <h1>Dashboard de Recompra / Restock</h1>
-      <p>Captura de productos de recompra por responsable y consolidado general automático.</p>
+      <div class="dashboard-header-top">
+        <div>
+          <h1>Dashboard de Recompra / Restock</h1>
+          <p>Captura de productos de recompra por responsable y consolidado general automático.</p>
+        </div>
+        <button class="btn btn-admin" id="btnAdmin" onclick="abrirModalAdmin()">ADMINISTRADOR</button>
+      </div>
     </section>
 
     <section class="tabs">
@@ -691,7 +716,6 @@
     <section id="contenido-angel" class="tab-content"></section>
 
     <section class="actions">
-      <button class="btn btn-admin" id="btnAdmin" onclick="abrirModalAdmin()">ADMINISTRADOR</button>
       <button class="btn btn-refresh" onclick="recargarDatos()">Actualizar</button>
       <button class="btn btn-save" onclick="guardarResumenTodo()">Guardar resumen</button>
       <button class="btn btn-export" onclick="exportarCSV()">Exportar CSV</button>
