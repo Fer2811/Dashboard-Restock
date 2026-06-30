@@ -512,7 +512,8 @@
     }
 
     .btn-row-save,
-    .btn-row-delete {
+    .btn-row-delete,
+    .btn-row-modify {
       border: none;
       border-radius: 8px;
       padding: 9px 12px;
@@ -529,6 +530,10 @@
 
     .btn-row-delete {
       background: #dc2626;
+    }
+
+    .btn-row-modify {
+      background: #2563eb;
     }
 
     .empty-message {
@@ -790,6 +795,9 @@
     let indiceBusqueda = [];
     let esAdmin = false;
     let filasDesbloqueadas = new Set();
+    // Filas de las pestañas individuales (Restock {Nombre}) que ya fueron
+    // guardadas y por lo tanto están congeladas, mostrando "Modificar".
+    let filasRestockCongeladas = new Set();
 
     // ── Contraseña única de administrador ──
     // Cambia este valor por la contraseña que quieras usar.
@@ -810,6 +818,7 @@
     window.recargarDatos = recargarDatos;
     window.agregarRestockActivo = agregarRestockActivo;
     window.guardarRestock = guardarRestock;
+    window.modificarRestock = modificarRestock;
     window.eliminarRestock = eliminarRestock;
     window.guardarResumenFila = guardarResumenFila;
     window.guardarResumenTodo = guardarResumenTodo;
@@ -1214,6 +1223,23 @@
       fila.dataset.id = id;
       fila.dataset.persona = personaKey;
 
+      const claveCongelada = `${personaKey}::${id}`;
+      const congelada = filasRestockCongeladas.has(claveCongelada);
+
+      const botonesHtml = congelada
+        ? `
+          <div class="row-buttons">
+            <button class="btn-row-modify" onclick="modificarRestock('${personaKey}', '${id}')">Modificar</button>
+            <button class="btn-row-delete" onclick="eliminarRestock('${personaKey}', '${id}')">Eliminar</button>
+          </div>
+        `
+        : `
+          <div class="row-buttons">
+            <button class="btn-row-save" onclick="guardarRestock('${personaKey}', '${id}')">Guardar</button>
+            <button class="btn-row-delete" onclick="eliminarRestock('${personaKey}', '${id}')">Eliminar</button>
+          </div>
+        `;
+
       fila.innerHTML = `
         <td>
           <input type="date" class="campo-fecha">
@@ -1239,10 +1265,7 @@
         </td>
 
         <td>
-          <div class="row-buttons">
-            <button class="btn-row-save" onclick="guardarRestock('${personaKey}', '${id}')">Guardar</button>
-            <button class="btn-row-delete" onclick="eliminarRestock('${personaKey}', '${id}')">Eliminar</button>
-          </div>
+          ${botonesHtml}
         </td>
       `;
 
@@ -1266,6 +1289,15 @@
 
       if (data.iq) {
         bloquearIQProducto(inputIQ, inputProducto);
+      }
+
+      if (congelada) {
+        fila.classList.add("fila-congelada");
+        inputFecha.disabled = true;
+        inputIQ.disabled = true;
+        inputProducto.disabled = true;
+        inputCantidad.disabled = true;
+        inputROI.disabled = true;
       }
 
       fila.querySelectorAll("input").forEach(input => {
@@ -1576,6 +1608,11 @@
 
         fila.classList.remove("fila-pendiente");
 
+        // Congelar la fila tras guardarla: se deshabilitan los campos y se
+        // muestran los botones "Modificar" + "Eliminar".
+        filasRestockCongeladas.add(`${personaKey}::${id}`);
+        renderizarPersona(personaKey);
+
         renderizarResumen();
         actualizarMetricas();
 
@@ -1586,6 +1623,14 @@
         estadoConexion.className = "status error";
         console.error(error);
       }
+    }
+
+    // Descongela una fila previamente guardada para permitir su edición.
+    function modificarRestock(personaKey, id) {
+      filasRestockCongeladas.delete(`${personaKey}::${id}`);
+      renderizarPersona(personaKey);
+      estadoConexion.textContent = "Fila habilitada para edición.";
+      estadoConexion.className = "status warning";
     }
 
     function obtenerDatosRestock(fila) {
@@ -1610,6 +1655,8 @@
 
       try {
         await remove(ref(db, `restockDashboard/rows/${personaKey}/${id}`));
+
+        filasRestockCongeladas.delete(`${personaKey}::${id}`);
 
         await recargarDatos();
         construirIndiceBusqueda();
@@ -1774,9 +1821,9 @@
       const congelado = grupo.congelado || false;
       const desbloqueada = congelado && esAdmin && filasDesbloqueadas.has(key);
       // Los campos están bloqueados si la fila está congelada y NO ha sido
-      // desbloqueada por el administrador. El checkbox "Pedido" siempre
-      // permanece bloqueado en filas congeladas para no romper la cantidad
-      // congelada ni afectar la fila activa donde se siguen sumando pedidos nuevos.
+      // desbloqueada por el administrador. Cuando el administrador desbloquea
+      // la fila (botón "Modificar"), se habilitan PROVEEDOR, PRECIO MÍNIMO,
+      // PEDIDO y PAGADO para poder corregir cualquiera de esos campos.
       const camposBloqueados = congelado && !desbloqueada;
 
       const fila = document.createElement("tr");
@@ -1833,7 +1880,7 @@
         </td>
 
         <td class="checkbox-cell">
-          <input type="checkbox" class="campo-pedido" ${congelado ? "disabled" : ""}>
+          <input type="checkbox" class="campo-pedido" ${camposBloqueados ? "disabled" : ""}>
         </td>
 
         <td>
