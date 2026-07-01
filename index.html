@@ -548,6 +548,53 @@
       font-size: 14px;
     }
 
+    .estado-fila {
+      display: inline-block;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 5px 10px;
+      border-radius: 999px;
+      white-space: nowrap;
+    }
+
+    .estado-fila[data-estado="guardado"] {
+      color: #15803d;
+      background: #dcfce7;
+    }
+
+    .estado-fila[data-estado="pendiente"] {
+      color: #b45309;
+      background: #fef3c7;
+    }
+
+    .estado-fila[data-estado="guardando"] {
+      color: #1d4ed8;
+      background: #dbeafe;
+    }
+
+    .estado-fila[data-estado="error"] {
+      color: #b91c1c;
+      background: #fee2e2;
+    }
+
+    .estado-fila[data-estado="congelado"] {
+      color: #15803d;
+      background: #dcfce7;
+    }
+
+    .fila-congelada-resumen {
+      background: #f0fdf4;
+      opacity: 0.88;
+    }
+
+    .fila-congelada-resumen td {
+      border-left: 3px solid #16a34a;
+    }
+
+    .fila-congelada-resumen td:first-child {
+      border-left: 3px solid #16a34a;
+    }
+
     /* ── Autocomplete IQ+Producto ── */
     .autocomplete-wrapper {
       position: relative;
@@ -556,6 +603,34 @@
 
     .autocomplete-wrapper input {
       width: 100%;
+    }
+
+    .autocomplete-wrapper-producto {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .autocomplete-wrapper-producto input {
+      flex: 1;
+    }
+
+    .btn-limpiar-producto {
+      flex-shrink: 0;
+      border: none;
+      border-radius: 8px;
+      width: 34px;
+      height: 34px;
+      font-size: 14px;
+      font-weight: 700;
+      color: #ffffff;
+      background: #dc2626;
+      cursor: pointer;
+      line-height: 1;
+    }
+
+    .btn-limpiar-producto:hover {
+      background: #b91c1c;
     }
 
     .autocomplete-dropdown {
@@ -747,6 +822,19 @@
     </div>
   </div>
 
+  <div class="modal-overlay" id="modalPestana">
+    <div class="modal-box">
+      <h2 id="modalPestanaTitulo">Acceso a pestaña</h2>
+      <p>Ingresa la contraseña para acceder a esta pestaña.</p>
+      <input type="password" id="inputPasswordPestana" placeholder="Contraseña" autocomplete="off">
+      <div class="modal-error" id="errorPasswordPestana"></div>
+      <div class="modal-actions">
+        <button class="btn btn-cancel" onclick="cerrarModalPestana()">Cancelar</button>
+        <button class="btn btn-admin" onclick="validarPasswordPestana()">Ingresar</button>
+      </div>
+    </div>
+  </div>
+
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
 
@@ -792,6 +880,25 @@
       { key: "angel", nombre: "Ángel" }
     ];
 
+    // ── Contraseñas individuales por pestaña "Restock {Nombre}" ──
+    // Cambia estos valores por las contraseñas que quieras usar.
+    const PESTANA_PASSWORDS = {
+      gaston: "IQ_Gas",
+      rebeca: "IQ_Rebe",
+      mariana: "IQ_Mari",
+      sairet: "IQ_Sai",
+      emiliano: "IQ_Emi",
+      angel: "IQ_Angel"
+    };
+
+    // Pestañas de vendedor que ya fueron desbloqueadas con su contraseña
+    // durante esta sesión (así no se vuelve a pedir cada vez que se entra).
+    let pestanasDesbloqueadas = new Set();
+
+    // Pestaña de vendedor pendiente de desbloquear mientras se muestra el
+    // modal de contraseña de pestaña.
+    let pestanaPendiente = null;
+
     let tabActiva = "resumen";
     let rowsCache = {};
     let summaryCache = {};
@@ -817,12 +924,14 @@
     const modalAdmin = document.getElementById("modalAdmin");
     const inputPasswordAdmin = document.getElementById("inputPasswordAdmin");
     const errorPasswordAdmin = document.getElementById("errorPasswordAdmin");
+    const modalPestana = document.getElementById("modalPestana");
+    const modalPestanaTitulo = document.getElementById("modalPestanaTitulo");
+    const inputPasswordPestana = document.getElementById("inputPasswordPestana");
+    const errorPasswordPestana = document.getElementById("errorPasswordPestana");
 
     window.cambiarTab = cambiarTab;
     window.recargarDatos = recargarDatos;
     window.agregarRestockActivo = agregarRestockActivo;
-    window.guardarRestock = guardarRestock;
-    window.modificarRestock = modificarRestock;
     window.eliminarRestock = eliminarRestock;
     window.guardarResumenFila = guardarResumenFila;
     window.guardarResumenTodo = guardarResumenTodo;
@@ -831,6 +940,8 @@
     window.abrirModalAdmin = abrirModalAdmin;
     window.cerrarModalAdmin = cerrarModalAdmin;
     window.validarPasswordAdmin = validarPasswordAdmin;
+    window.cerrarModalPestana = cerrarModalPestana;
+    window.validarPasswordPestana = validarPasswordPestana;
 
     function crearTablasRestock() {
       PERSONAS.forEach(persona => {
@@ -846,7 +957,7 @@
                   <th>Producto</th>
                   <th>Cantidad restock</th>
                   <th>ROI</th>
-                  <th>Acción</th>
+                  <th>Estado</th>
                 </tr>
               </thead>
 
@@ -1124,12 +1235,57 @@
         btnAdmin.classList.add("is-active");
         cerrarModalAdmin();
         renderizarResumen();
+        // En modo administrador no se pide contraseña para ninguna pestaña.
         estadoConexion.textContent = "Modo administrador activado.";
         estadoConexion.className = "status ok";
       } else {
         errorPasswordAdmin.textContent = "Contraseña incorrecta.";
       }
     }
+
+    // ── Pestañas de vendedor: modal de contraseña ──
+    function abrirModalPestana(personaKey, nombre) {
+      pestanaPendiente = personaKey;
+      errorPasswordPestana.textContent = "";
+      inputPasswordPestana.value = "";
+      modalPestanaTitulo.textContent = `Acceso a Restock ${nombre}`;
+      modalPestana.classList.add("visible");
+      setTimeout(() => inputPasswordPestana.focus(), 50);
+    }
+
+    function cerrarModalPestana() {
+      modalPestana.classList.remove("visible");
+      pestanaPendiente = null;
+    }
+
+    function validarPasswordPestana() {
+      if (!pestanaPendiente) return;
+
+      const valor = inputPasswordPestana.value;
+      const esperado = PESTANA_PASSWORDS[pestanaPendiente];
+
+      if (valor === esperado) {
+        pestanasDesbloqueadas.add(pestanaPendiente);
+        const pestanaAAbrir = pestanaPendiente;
+        cerrarModalPestana();
+        mostrarTab(pestanaAAbrir);
+        estadoConexion.textContent = "Acceso concedido.";
+        estadoConexion.className = "status ok";
+      } else {
+        errorPasswordPestana.textContent = "Contraseña incorrecta.";
+      }
+    }
+
+    inputPasswordPestana?.addEventListener("keydown", e => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        validarPasswordPestana();
+      }
+    });
+
+    modalPestana?.addEventListener("click", e => {
+      if (e.target === modalPestana) cerrarModalPestana();
+    });
 
     inputPasswordAdmin?.addEventListener("keydown", e => {
       if (e.key === "Enter") {
@@ -1143,6 +1299,21 @@
     });
 
     function cambiarTab(tab) {
+      // Las pestañas "Restock {Nombre}" requieren contraseña, salvo en modo
+      // administrador o si ya fueron desbloqueadas en esta sesión.
+      const persona = PERSONAS.find(p => p.key === tab);
+
+      if (persona && !esAdmin && !pestanasDesbloqueadas.has(tab)) {
+        abrirModalPestana(tab, persona.nombre);
+        return;
+      }
+
+      mostrarTab(tab);
+    }
+
+    // Realiza el cambio de pestaña visible sin volver a pedir contraseña.
+    // Usada internamente por cambiarTab() una vez validado el acceso.
+    function mostrarTab(tab) {
       tabActiva = tab;
 
       document.querySelectorAll(".tab-btn").forEach(btn => btn.classList.remove("active"));
@@ -1214,27 +1385,27 @@
       });
     }
 
+    // Determina si una fila de restock (personaKey::id) forma parte de un
+    // grupo del resumen que ya fue congelado. Al congelar una fila en
+    // "Suma de todos" se guarda una foto (rowIdsCongelados) de qué filas de
+    // origen la componen; mientras esa foto siga vigente, esas filas quedan
+    // bloqueadas también en las pestañas "Restock {Nombre}", sin importar
+    // desde qué pestaña se consulte.
+    function esFilaCongeladaPorResumen(personaKey, id) {
+      const uid = `${personaKey}::${id}`;
+
+      return Object.values(summaryCache).some(saved => {
+        if (!saved || !saved.congelado) return false;
+        return Array.isArray(saved.rowIdsCongelados) && saved.rowIdsCongelados.includes(uid);
+      });
+    }
+
     function crearFilaRestock(tbody, personaKey, id, data) {
       const fila = document.createElement("tr");
       fila.dataset.id = id;
       fila.dataset.persona = personaKey;
 
-      const claveCongelada = `${personaKey}::${id}`;
-      const congelada = filasRestockCongeladas.has(claveCongelada);
-
-      const botonesHtml = congelada
-        ? `
-          <div class="row-buttons">
-            <button class="btn-row-modify" onclick="modificarRestock('${personaKey}', '${id}')">Modificar</button>
-            <button class="btn-row-delete" onclick="eliminarRestock('${personaKey}', '${id}')">Eliminar</button>
-          </div>
-        `
-        : `
-          <div class="row-buttons">
-            <button class="btn-row-save" onclick="guardarRestock('${personaKey}', '${id}')">Guardar</button>
-            <button class="btn-row-delete" onclick="eliminarRestock('${personaKey}', '${id}')">Eliminar</button>
-          </div>
-        `;
+      const congeladaPorResumen = esFilaCongeladaPorResumen(personaKey, id);
 
       fila.innerHTML = `
         <td>
@@ -1246,8 +1417,9 @@
         </td>
 
         <td>
-          <div class="autocomplete-wrapper">
+          <div class="autocomplete-wrapper autocomplete-wrapper-producto">
             <input type="text" class="campo-producto" placeholder="IQ o producto…" autocomplete="off">
+            <button type="button" class="btn-limpiar-producto" title="Corregir producto" aria-label="Corregir producto">✕</button>
             <div class="autocomplete-dropdown"></div>
           </div>
         </td>
@@ -1261,7 +1433,7 @@
         </td>
 
         <td>
-          ${botonesHtml}
+          <span class="estado-fila" data-estado="guardado">Guardado</span>
         </td>
       `;
 
@@ -1271,6 +1443,8 @@
       const inputCantidad = fila.querySelector(".campo-cantidad");
       const inputROI = fila.querySelector(".campo-roi");
       const dropdown = fila.querySelector(".autocomplete-dropdown");
+      const btnLimpiarProducto = fila.querySelector(".btn-limpiar-producto");
+      const estadoFila = fila.querySelector(".estado-fila");
 
       inputFecha.value = data.fecha || "";
       inputIQ.value = data.iq || "";
@@ -1287,26 +1461,62 @@
         bloquearIQProducto(inputIQ, inputProducto);
       }
 
-      if (congelada) {
-        fila.classList.add("fila-congelada");
+      // Fila bloqueada porque su producto (IQ) ya fue congelado desde la
+      // pestaña "Suma de todos": queda de solo lectura en TODAS las
+      // pestañas de vendedor, sin importar quién la haya capturado.
+      if (congeladaPorResumen) {
+        fila.classList.add("fila-congelada-resumen");
         inputFecha.disabled = true;
         inputIQ.disabled = true;
         inputProducto.disabled = true;
         inputCantidad.disabled = true;
         inputROI.disabled = true;
+        btnLimpiarProducto.disabled = true;
+        marcarEstadoFila(estadoFila, "congelado");
+        tbody.appendChild(fila);
+        return;
       }
 
+      // Si la fila todavía no tiene una cantidad válida capturada, se marca
+      // como pendiente desde el inicio para que el usuario vea que falta
+      // completarla (aún no se ha guardado nada útil en el stock).
+      const cantidadInicial = obtenerNumero(data.cantidadRestock || "");
+      if (isNaN(cantidadInicial) || cantidadInicial <= 0) {
+        marcarEstadoFila(estadoFila, "pendiente");
+      }
+
+      // Botón "✕" junto al campo de producto: permite corregir un
+      // producto elegido por error, sin necesidad de eliminar la fila.
+      // Limpia IQ y producto, y los deja habilitados para volver a
+      // elegir. El cambio se autoguarda igual que cualquier otro campo.
+      btnLimpiarProducto.addEventListener("click", () => {
+        inputIQ.value = "";
+        inputProducto.value = "";
+        inputIQ.disabled = false;
+        inputProducto.disabled = false;
+        marcarEstadoFila(estadoFila, "pendiente");
+        programarAutoguardado(personaKey, id, fila, estadoFila);
+        inputProducto.focus();
+      });
+
+      // Autoguardado: cualquier cambio en un campo agenda un guardado
+      // (con una breve pausa para no golpear la base de datos en cada
+      // tecla) sin necesidad de un botón "Guardar".
       fila.querySelectorAll("input").forEach(input => {
         input.addEventListener("input", () => {
-          fila.classList.add("fila-pendiente");
-          estadoConexion.textContent = "Hay cambios sin guardar.";
-          estadoConexion.className = "status warning";
+          marcarEstadoFila(estadoFila, "pendiente");
+          programarAutoguardado(personaKey, id, fila, estadoFila);
         });
 
         input.addEventListener("change", () => {
-          fila.classList.add("fila-pendiente");
-          estadoConexion.textContent = "Hay cambios sin guardar.";
-          estadoConexion.className = "status warning";
+          marcarEstadoFila(estadoFila, "pendiente");
+          programarAutoguardado(personaKey, id, fila, estadoFila);
+        });
+
+        // Al salir del campo, se guarda de inmediato (sin esperar el
+        // debounce) para que el stock quede al día lo antes posible.
+        input.addEventListener("blur", () => {
+          programarAutoguardado(personaKey, id, fila, estadoFila, true);
         });
       });
 
@@ -1563,7 +1773,7 @@
         await recargarDatos();
         construirIndiceBusqueda();
 
-        cambiarTab(tabActiva);
+        mostrarTab(tabActiva);
 
         const tbody = document.getElementById(`tabla-${tabActiva}`);
         const primeraFila = tbody.querySelector("tr[data-id]");
@@ -1579,28 +1789,78 @@
       }
     }
 
-    async function guardarRestock(personaKey, id) {
-      const fila = document.querySelector(
-          `tr[data-persona="${personaKey}"][data-id="${id}"]`
-      );
-      if (!fila) return;
+    // Temporizadores de debounce por fila (personaKey::id) para el
+    // autoguardado. Evita disparar una escritura a Firebase en cada tecla.
+    const temporizadoresAutoguardado = {};
+    const AUTOGUARDADO_DEBOUNCE_MS = 700;
+
+    function marcarEstadoFila(estadoFila, estado) {
+      if (!estadoFila) return;
+      estadoFila.dataset.estado = estado;
+
+      if (estado === "pendiente") {
+        estadoFila.textContent = "Sin guardar";
+      } else if (estado === "guardando") {
+        estadoFila.textContent = "Guardando…";
+      } else if (estado === "error") {
+        estadoFila.textContent = "Error al guardar";
+      } else if (estado === "congelado") {
+        estadoFila.textContent = "🔒 Congelado";
+      } else {
+        estadoFila.textContent = "Guardado";
+      }
+    }
+
+    // Agenda (o ejecuta de inmediato si inmediato=true) el guardado
+    // automático de una fila de restock. Sustituye al botón "Guardar":
+    // el stock se actualiza solo, sin acción manual del usuario.
+    function programarAutoguardado(personaKey, id, fila, estadoFila, inmediato = false) {
+      const clave = `${personaKey}::${id}`;
+
+      if (temporizadoresAutoguardado[clave]) {
+        clearTimeout(temporizadoresAutoguardado[clave]);
+        delete temporizadoresAutoguardado[clave];
+      }
+
+      const ejecutar = () => guardarRestockAutomatico(personaKey, id, fila, estadoFila);
+
+      if (inmediato) {
+        ejecutar();
+        return;
+      }
+
+      temporizadoresAutoguardado[clave] = setTimeout(ejecutar, AUTOGUARDADO_DEBOUNCE_MS);
+    }
+
+    async function guardarRestockAutomatico(personaKey, id, fila, estadoFila) {
+      // La fila pudo haber sido quitada del DOM (p. ej. se cambió de
+      // pestaña y se volvió a renderizar) entre que se agendó el guardado
+      // y que se ejecuta; en ese caso no hay nada que hacer.
+      if (!document.body.contains(fila)) return;
+
+      // Seguridad extra: si la fila ya fue congelada desde el resumen
+      // (p. ej. otro usuario congeló ese producto mientras se escribía
+      // aquí), no se guarda el cambio.
+      if (esFilaCongeladaPorResumen(personaKey, id)) {
+        marcarEstadoFila(estadoFila, "congelado");
+        return;
+      }
 
       const data = obtenerDatosRestock(fila);
 
-      // Validación explícita: la cantidad debe ser un número válido mayor
-      // que 0. Antes, si el campo quedaba vacío o con un valor contaminado
-      // (p. ej. el código IQ pegado por error), la fila se guardaba igual y
-      // "Suma de todos" terminaba mostrando una cantidad incorrecta (como
-      // 30 piezas) en vez de avisar al usuario del error.
+      // Mientras la cantidad no sea un número válido mayor que 0, no se
+      // guarda en Firebase (evita registrar restock en 0 o vacío), pero
+      // tampoco se molesta al usuario con un error mientras sigue
+      // capturando: solo se deja la fila marcada como "Sin guardar".
       const cantidadNumerica = obtenerNumero(data.cantidadRestock);
       if (data.cantidadRestock.trim() === "" || isNaN(cantidadNumerica) || cantidadNumerica <= 0) {
-        estadoConexion.textContent = "No se puede guardar: la cantidad de restock está vacía o no es válida.";
-        estadoConexion.className = "status error";
-        fila.querySelector(".campo-cantidad")?.classList.add("campo-error");
-        fila.querySelector(".campo-cantidad")?.focus();
+        marcarEstadoFila(estadoFila, "pendiente");
+        fila.querySelector(".campo-cantidad")?.classList.remove("campo-error");
         return;
       }
       fila.querySelector(".campo-cantidad")?.classList.remove("campo-error");
+
+      marcarEstadoFila(estadoFila, "guardando");
 
       try {
         await update(ref(db, `restockDashboard/rows/${personaKey}/${id}`), {
@@ -1617,31 +1877,23 @@
 
         construirIndiceBusqueda();
 
-        fila.classList.remove("fila-pendiente");
-
-        // Congelar la fila tras guardarla: se deshabilitan los campos y se
-        // muestran los botones "Modificar" + "Eliminar".
-        filasRestockCongeladas.add(`${personaKey}::${id}`);
-        renderizarPersona(personaKey);
+        if (document.body.contains(fila)) {
+          marcarEstadoFila(estadoFila, "guardado");
+        }
 
         renderizarResumen();
         actualizarMetricas();
 
-        estadoConexion.textContent = "Fila guardada correctamente.";
+        estadoConexion.textContent = "Stock actualizado automáticamente.";
         estadoConexion.className = "status ok";
       } catch (error) {
-        estadoConexion.textContent = "Error al guardar fila.";
+        if (document.body.contains(fila)) {
+          marcarEstadoFila(estadoFila, "error");
+        }
+        estadoConexion.textContent = "Error al actualizar el stock.";
         estadoConexion.className = "status error";
         console.error(error);
       }
-    }
-
-    // Descongela una fila previamente guardada para permitir su edición.
-    function modificarRestock(personaKey, id) {
-      filasRestockCongeladas.delete(`${personaKey}::${id}`);
-      renderizarPersona(personaKey);
-      estadoConexion.textContent = "Fila habilitada para edición.";
-      estadoConexion.className = "status warning";
     }
 
     function obtenerDatosRestock(fila) {
@@ -1671,7 +1923,7 @@
 
         await recargarDatos();
         construirIndiceBusqueda();
-        cambiarTab(personaKey);
+        mostrarTab(personaKey);
 
         estadoConexion.textContent = "Fila eliminada correctamente.";
         estadoConexion.className = "status ok";
@@ -1968,7 +2220,7 @@
           congelado: false
         };
 
-        renderizarResumen();
+        renderizarTodo();
 
         estadoConexion.textContent = "Fila del resumen habilitada para edición.";
         estadoConexion.className = "status warning";
@@ -1984,6 +2236,18 @@
       if (!fila) return;
 
       const data = obtenerDatosResumen(fila);
+
+      // Una fila del resumen solo puede congelarse (quedar en solo lectura)
+      // si ya se marcó la casilla "Pedido". Si no está marcada, se avisa y
+      // no se guarda como congelada.
+      if (!data.pedido) {
+        estadoConexion.textContent = "No se puede congelar: marca primero la casilla \"Pedido\".";
+        estadoConexion.className = "status error";
+        fila.querySelector(".campo-pedido")?.classList.add("campo-error");
+        fila.querySelector(".campo-pedido")?.focus();
+        return;
+      }
+      fila.querySelector(".campo-pedido")?.classList.remove("campo-error");
 
       // Foto de qué filas de origen (persona::id) forman esta fila en el
       // momento de congelarla. Así, si luego se agregan más piezas del mismo
@@ -2006,10 +2270,9 @@
 
         fila.classList.remove("fila-pendiente");
 
-        renderizarResumen();
-        actualizarMetricas();
+        renderizarTodo();
 
-        estadoConexion.textContent = "Resumen guardado correctamente.";
+        estadoConexion.textContent = "Resumen guardado y congelado correctamente.";
         estadoConexion.className = "status ok";
       } catch (error) {
         estadoConexion.textContent = "Error al guardar resumen.";
@@ -2021,13 +2284,26 @@
     async function guardarResumenTodo() {
       const filas = tablaResumen.querySelectorAll("tr[data-key]");
       const promesas = [];
+      let faltaronPedido = 0;
 
       filas.forEach(fila => {
         const key = fila.dataset.key;
         const data = obtenerDatosResumen(fila);
 
-        const grupoActual = ultimoResumenGrupos[key];
-        data.rowIdsCongelados = grupoActual ? grupoActual.rowIds : [];
+        // Igual que en guardarResumenFila: sin "Pedido" marcado, esa fila
+        // no se congela. Se guarda sin cambios en su estado de congelado
+        // para no perder lo que el usuario ya haya capturado (precio,
+        // proveedor, etc.), pero sin bloquear la fila.
+        if (!data.pedido) {
+          faltaronPedido++;
+          fila.querySelector(".campo-pedido")?.classList.add("campo-error");
+          data.congelado = false;
+          delete data.rowIdsCongelados;
+        } else {
+          fila.querySelector(".campo-pedido")?.classList.remove("campo-error");
+          const grupoActual = ultimoResumenGrupos[key];
+          data.rowIdsCongelados = grupoActual ? grupoActual.rowIds : [];
+        }
 
         promesas.push(
           update(ref(db, `restockDashboard/summary/${key}`), {
@@ -2045,10 +2321,15 @@
       try {
         await Promise.all(promesas);
 
-        renderizarResumen();
+        renderizarTodo();
 
-        estadoConexion.textContent = "Resumen completo guardado correctamente.";
-        estadoConexion.className = "status ok";
+        if (faltaronPedido > 0) {
+          estadoConexion.textContent = `Resumen guardado. ${faltaronPedido} fila(s) no se congelaron por no tener "Pedido" marcado.`;
+          estadoConexion.className = "status warning";
+        } else {
+          estadoConexion.textContent = "Resumen completo guardado y congelado correctamente.";
+          estadoConexion.className = "status ok";
+        }
       } catch (error) {
         estadoConexion.textContent = "Error al guardar resumen completo.";
         estadoConexion.className = "status error";
