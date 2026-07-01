@@ -359,6 +359,11 @@
       background: #fffbeb;
     }
 
+    .campo-error {
+      border: 2px solid #dc2626 !important;
+      background: #fef2f2 !important;
+    }
+
     .fila-congelada {
       background: #f0fdf4;
       opacity: 0.88;
@@ -794,7 +799,6 @@
     let catalogoDetalle = new Map();
     let indiceBusqueda = [];
     let esAdmin = false;
-    let filasDesbloqueadas = new Set();
     // Filas de las pestañas individuales (Restock {Nombre}) que ya fueron
     // guardadas y por lo tanto están congeladas, mostrando "Modificar".
     let filasRestockCongeladas = new Set();
@@ -822,11 +826,11 @@
     window.eliminarRestock = eliminarRestock;
     window.guardarResumenFila = guardarResumenFila;
     window.guardarResumenTodo = guardarResumenTodo;
+    window.modificarResumen = modificarResumen;
     window.exportarCSV = exportarCSV;
     window.abrirModalAdmin = abrirModalAdmin;
     window.cerrarModalAdmin = cerrarModalAdmin;
     window.validarPasswordAdmin = validarPasswordAdmin;
-    window.activarModificarFila = activarModificarFila;
 
     function crearTablasRestock() {
       PERSONAS.forEach(persona => {
@@ -1088,12 +1092,11 @@
       return result;
     }
 
-    // ── Administrador: modal de contraseña y desbloqueo de filas congeladas ──
+    // ── Administrador: modal de contraseña ──
     function abrirModalAdmin() {
       if (esAdmin) {
         // Si ya es admin, el botón sirve para salir del modo administrador
         esAdmin = false;
-        filasDesbloqueadas.clear();
         btnAdmin.textContent = "ADMINISTRADOR";
         btnAdmin.classList.remove("is-active");
         renderizarResumen();
@@ -1138,13 +1141,6 @@
     modalAdmin?.addEventListener("click", e => {
       if (e.target === modalAdmin) cerrarModalAdmin();
     });
-
-    // Habilita temporalmente la edición de una fila congelada específica.
-    // No afecta a la fila "activa" donde se siguen acumulando los pedidos nuevos.
-    function activarModificarFila(key) {
-      filasDesbloqueadas.add(key);
-      renderizarResumen();
-    }
 
     function cambiarTab(tab) {
       tabActiva = tab;
@@ -1591,6 +1587,21 @@
 
       const data = obtenerDatosRestock(fila);
 
+      // Validación explícita: la cantidad debe ser un número válido mayor
+      // que 0. Antes, si el campo quedaba vacío o con un valor contaminado
+      // (p. ej. el código IQ pegado por error), la fila se guardaba igual y
+      // "Suma de todos" terminaba mostrando una cantidad incorrecta (como
+      // 30 piezas) en vez de avisar al usuario del error.
+      const cantidadNumerica = obtenerNumero(data.cantidadRestock);
+      if (data.cantidadRestock.trim() === "" || isNaN(cantidadNumerica) || cantidadNumerica <= 0) {
+        estadoConexion.textContent = "No se puede guardar: la cantidad de restock está vacía o no es válida.";
+        estadoConexion.className = "status error";
+        fila.querySelector(".campo-cantidad")?.classList.add("campo-error");
+        fila.querySelector(".campo-cantidad")?.focus();
+        return;
+      }
+      fila.querySelector(".campo-cantidad")?.classList.remove("campo-error");
+
       try {
         await update(ref(db, `restockDashboard/rows/${personaKey}/${id}`), {
           ...data,
@@ -1671,129 +1682,126 @@
       }
     }
 
+    // Construye un grupo (fila de resumen) a partir de una lista de filas
+    // individuales { uid, row } que comparten el mismo IQ.
+    function construirGrupoDesde(iq, key, filas) {
+      const fechas = [];
+      const rois = [];
+      const rowIds = [];
+      let cantidadTotal = 0;
+      let producto = "";
+
+      filas.forEach(({ uid, row }) => {
+        rowIds.push(uid);
+
+        if (row.fecha) fechas.push(row.fecha);
+
+        const cantidad = obtenerNumero(row.cantidadRestock);
+        if (!isNaN(cantidad)) cantidadTotal += cantidad;
+
+        const roi = obtenerNumero(row.roi);
+        if (!isNaN(roi)) rois.push(roi);
+
+        if (!producto && row.producto) producto = row.producto;
+      });
+
+      fechas.sort();
+
+      return {
+        key,
+        iq,
+        producto: producto || catalogoIQ.get(iq) || "",
+        fecha: fechas[0] || "",
+        cantidadTotal,
+        roiPromedio: rois.length
+          ? rois.reduce((a, b) => a + b, 0) / rois.length
+          : null,
+        rowIds,
+        congelado: false
+      };
+    }
+
     function construirResumen() {
-      // ── Paso 1: acumular TODAS las filas de rowsCache por IQ ─────────────────
-      const acum = {};
+      // ── Agrupar TODAS las filas de rowsCache por IQ, conservando el id de
+      // origen de cada una (persona::id) para poder distinguir después qué
+      // piezas ya estaban incluidas en una fila congelada y cuáles son nuevas.
+      const filasPorIQ = {};
 
       PERSONAS.forEach(persona => {
         const dataPersona = rowsCache[persona.key] || {};
 
-        Object.values(dataPersona).forEach(row => {
+        Object.entries(dataPersona).forEach(([id, row]) => {
           const iq = String(row.iq || "").trim().toUpperCase();
           if (!iq) return;
 
-          if (!acum[iq]) {
-            acum[iq] = {
-              iq,
-              producto: row.producto || catalogoIQ.get(iq) || "",
-              fechas: [],
-              cantidadTotal: 0,
-              rois: [],
-              rowIds: []
-            };
-          }
+          const uid = `${persona.key}::${id}`;
 
-          if (row.fecha) acum[iq].fechas.push(row.fecha);
-
-          const cantidad = obtenerNumero(row.cantidadRestock);
-          if (!isNaN(cantidad)) acum[iq].cantidadTotal += cantidad;
-
-          const roi = obtenerNumero(row.roi);
-          if (!isNaN(roi)) acum[iq].rois.push(roi);
-
-          if (!acum[iq].producto && row.producto) {
-            acum[iq].producto = row.producto;
-          }
+          if (!filasPorIQ[iq]) filasPorIQ[iq] = [];
+          filasPorIQ[iq].push({ uid, row });
         });
       });
 
-      // ── Paso 2: calcular fecha y ROI promedio ─────────────────────────────────
-      Object.values(acum).forEach(g => {
-        g.fechas.sort();
-        g.fecha = g.fechas[0] || "";
-        g.roiPromedio = g.rois.length
-          ? g.rois.reduce((a, b) => a + b, 0) / g.rois.length
-          : null;
-      });
-
-      // ── Paso 3: dividir en grupos respetando cantidades congeladas ────────────
-      // Un IQ puede tener una o más filas en el resumen:
-      //   - La primera con PEDIDO=true tiene su cantidad congelada.
-      //   - Si la suma actual supera la cantidad congelada, el excedente
-      //     se muestra como una nueva fila independiente (key: IQ__v2, v3…).
+      // ── Construir los grupos, separando piezas nuevas de una fila ya
+      // congelada en una fila adicional (sin congelar) en vez de mezclarlas.
       const grupos = {};
 
-      Object.values(acum).forEach(g => {
-        const iq = g.iq;
-        let cantidadRestante = g.cantidadTotal;
+      Object.entries(filasPorIQ).forEach(([iq, filas]) => {
+        const keyBase = safeKey(iq);
 
-        // Recopilar todas las versiones congeladas para este IQ
-        let version = 1;
+        // Recorre las "capas" congeladas de este producto (la base y, si ya
+        // se congeló también una fila de piezas nuevas, sus sucesivas
+        // fila "__nuevo", "__nuevo2", etc.), dejando en cada capa solo las
+        // piezas que existían cuando esa capa se congeló, y las piezas
+        // realmente nuevas siguen bajando hasta encontrar una fila sin
+        // congelar (o crear una nueva) donde puedan quedar.
+        let claveActual = keyBase;
+        let filasRestantes = filas;
+        let contadorNueva = 1;
+
         while (true) {
-          const key = version === 1 ? safeKey(iq) : safeKey(iq) + "__v" + version;
-          const saved = summaryCache[key] || {};
-
-          if (version > 1 && !summaryCache[key]) {
-            // No existe esta versión guardada, este es el grupo "activo" (no pedido aún)
-            if (cantidadRestante > 0) {
-              grupos[key] = {
-                ...g,
-                key,
-                iq,
-                cantidadTotal: cantidadRestante,
-                congelado: false
-              };
-            }
-            break;
-          }
-
-          const esPedido = saved.pedido || false;
-          const cantCongelada = saved.cantidadCongelada !== undefined
-            ? obtenerNumero(saved.cantidadCongelada)
+          const saved = summaryCache[claveActual] || {};
+          const congelada = !!saved.congelado;
+          const idsCongelados = Array.isArray(saved.rowIdsCongelados)
+            ? saved.rowIdsCongelados
             : null;
 
-          if (esPedido && cantCongelada !== null && !isNaN(cantCongelada)) {
-            // Esta versión está congelada
-            grupos[key] = {
-              ...g,
-              key,
-              iq,
-              cantidadTotal: cantCongelada,
-              congelado: true
-            };
-            cantidadRestante = Math.max(0, cantidadRestante - cantCongelada);
-            version++;
-          } else if (version === 1) {
-            // Primera versión, no congelada
-            grupos[key] = {
-              ...g,
-              key,
-              iq,
-              cantidadTotal: cantidadRestante,
-              congelado: false
-            };
-            break;
-          } else {
-            // Versión superior no congelada aún
-            if (cantidadRestante > 0) {
-              grupos[key] = {
-                ...g,
-                key,
-                iq,
-                cantidadTotal: cantidadRestante,
-                congelado: false
-              };
-            }
+          // Fila sin congelar (o sin "foto" de filas guardada, por
+          // compatibilidad con datos antiguos): aquí se quedan todas las
+          // piezas restantes, como fila editable.
+          if (!congelada || !idsCongelados) {
+            grupos[claveActual] = construirGrupoDesde(iq, claveActual, filasRestantes);
             break;
           }
+
+          const idsCongeladosSet = new Set(idsCongelados);
+          const filasViejas = filasRestantes.filter(f => idsCongeladosSet.has(f.uid));
+          const filasNuevas = filasRestantes.filter(f => !idsCongeladosSet.has(f.uid));
+
+          grupos[claveActual] = {
+            ...construirGrupoDesde(iq, claveActual, filasViejas.length ? filasViejas : filasRestantes),
+            congelado: true
+          };
+
+          if (!filasNuevas.length) break;
+
+          // Quedan piezas nuevas: pasan a la siguiente capa (otra fila,
+          // aparte de la congelada) en vez de sumarse a esta.
+          filasRestantes = filasNuevas;
+          claveActual = contadorNueva === 1 ? `${keyBase}__nuevo` : `${keyBase}__nuevo${contadorNueva}`;
+          contadorNueva++;
         }
       });
 
       return grupos;
     }
 
+    // Guarda el último resultado de construirResumen() para poder acceder a
+    // los rowIds de cada grupo al momento de congelar una fila.
+    let ultimoResumenGrupos = {};
+
     function renderizarResumen() {
       const grupos = construirResumen();
+      ultimoResumenGrupos = grupos;
       const entradas = Object.entries(grupos).sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true }));
 
       tablaResumen.innerHTML = "";
@@ -1818,36 +1826,34 @@
       const key = groupKey;
       const iq = grupo.iq;
       const saved = summaryCache[key] || {};
-      const congelado = grupo.congelado || false;
-      const desbloqueada = congelado && esAdmin && filasDesbloqueadas.has(key);
-      // Los campos están bloqueados si la fila está congelada y NO ha sido
-      // desbloqueada por el administrador. Cuando el administrador desbloquea
-      // la fila (botón "Modificar"), se habilitan PROVEEDOR, PRECIO MÍNIMO,
-      // PEDIDO y PAGADO para poder corregir cualquiera de esos campos.
-      const camposBloqueados = congelado && !desbloqueada;
 
       const fila = document.createElement("tr");
       fila.dataset.iq = iq;
       fila.dataset.key = key;
-      if (congelado) fila.classList.add("fila-congelada");
-      if (desbloqueada) fila.classList.add("fila-desbloqueada");
 
       const roiText = grupo.roiPromedio === null ? "-" : `${redondear(grupo.roiPromedio)}%`;
       const roiClass = grupo.roiPromedio !== null && grupo.roiPromedio >= 15 ? "roi-green" : "";
 
-      // Badge visual para filas congeladas (ya pedidas)
-      const badgeCongelado = congelado
-        ? `<span class="badge-congelado">🔒 Pedido${desbloqueada ? " (editando)" : ""}</span>`
+      // Badge informativo: solo indica si está marcado como pedido, pero ya
+      // no bloquea ni congela ningún valor. La cantidad siempre se calcula
+      // en vivo a partir de las filas realmente capturadas; si una fila se
+      // elimina o corrige, este total se actualiza automáticamente.
+      const badgePedido = saved.pedido
+        ? `<span class="badge-congelado">✅ Pedido</span>`
         : "";
 
-      let celdaAccion;
-      if (congelado && esAdmin && !desbloqueada) {
-        celdaAccion = `<button class="btn-row-modify" onclick="activarModificarFila('${key}')">Modificar</button>`;
-      } else if (congelado && !desbloqueada) {
-        celdaAccion = `<span class="readonly" style="color:#6b7280;font-size:12px;">Congelado</span>`;
-      } else {
-        celdaAccion = `<button class="btn-row-save" onclick="guardarResumenFila('${key}')">Guardar</button>`;
-      }
+      // Una fila del resumen queda congelada (solo lectura) una vez que se
+      // guarda. El administrador puede volver a habilitarla con el botón
+      // "Modificar".
+      const congelada = !!saved.congelado;
+
+      const badgeCongelado = congelada
+        ? `<span class="badge-congelado">🔒 Congelado</span>`
+        : "";
+
+      const botonAccion = congelada
+        ? `<button class="btn-row-modify" onclick="modificarResumen('${key}')">Modificar</button>`
+        : `<button class="btn-row-save" onclick="guardarResumenFila('${key}')">Guardar</button>`;
 
       fila.innerHTML = `
         <td>
@@ -1856,6 +1862,7 @@
 
         <td>
           <span class="readonly">${escaparHTML(iq)}</span>
+          ${badgePedido}
           ${badgeCongelado}
         </td>
 
@@ -1872,28 +1879,32 @@
         </td>
 
         <td>
-          <input type="text" class="campo-precio-minimo" placeholder="$0" ${camposBloqueados ? "disabled" : ""}>
+          <input type="text" class="campo-precio-minimo" placeholder="$0">
         </td>
 
         <td>
-          <input type="text" class="campo-proveedor" placeholder="Proveedor" ${camposBloqueados ? "disabled" : ""}>
+          <input type="text" class="campo-proveedor" placeholder="Proveedor">
         </td>
 
         <td class="checkbox-cell">
-          <input type="checkbox" class="campo-pedido" ${camposBloqueados ? "disabled" : ""}>
+          <input type="checkbox" class="campo-pedido">
         </td>
 
         <td>
           <div class="paid-box">
-            <input type="checkbox" class="campo-pagado" ${camposBloqueados ? "disabled" : ""}>
-            <input type="date" class="campo-fecha-pago" ${camposBloqueados ? "disabled" : ""}>
+            <input type="checkbox" class="campo-pagado">
+            <input type="date" class="campo-fecha-pago">
           </div>
         </td>
 
         <td>
-          ${celdaAccion}
+          ${botonAccion}
         </td>
       `;
+
+      if (congelada) {
+        fila.classList.add("fila-congelada");
+      }
 
       const inputPrecio = fila.querySelector(".campo-precio-minimo");
       const inputProveedor = fila.querySelector(".campo-proveedor");
@@ -1909,25 +1920,63 @@
 
       formatearPrecio(inputPrecio);
 
-      if (!camposBloqueados) {
-        fila.querySelectorAll("input:not(:disabled)").forEach(input => {
-          input.addEventListener("input", () => {
-            fila.classList.add("fila-pendiente");
-            estadoConexion.textContent = "Hay cambios sin guardar.";
-            estadoConexion.className = "status warning";
-          });
-
-          input.addEventListener("change", () => {
-            fila.classList.add("fila-pendiente");
-            estadoConexion.textContent = "Hay cambios sin guardar.";
-            estadoConexion.className = "status warning";
-          });
-        });
-
-        inputPrecio.addEventListener("blur", () => formatearPrecio(inputPrecio));
+      if (congelada) {
+        inputPrecio.disabled = true;
+        inputProveedor.disabled = true;
+        inputPedido.disabled = true;
+        inputPagado.disabled = true;
+        inputFechaPago.disabled = true;
       }
 
+      fila.querySelectorAll("input").forEach(input => {
+        input.addEventListener("input", () => {
+          fila.classList.add("fila-pendiente");
+          estadoConexion.textContent = "Hay cambios sin guardar.";
+          estadoConexion.className = "status warning";
+        });
+
+        input.addEventListener("change", () => {
+          fila.classList.add("fila-pendiente");
+          estadoConexion.textContent = "Hay cambios sin guardar.";
+          estadoConexion.className = "status warning";
+        });
+      });
+
+      inputPrecio.addEventListener("blur", () => formatearPrecio(inputPrecio));
+
       tablaResumen.appendChild(fila);
+    }
+
+    // Descongela una fila del resumen ya guardada para permitir su edición.
+    // Solo el administrador (contraseña validada) puede hacerlo.
+    async function modificarResumen(key) {
+      if (!esAdmin) {
+        estadoConexion.textContent = "Solo el administrador puede modificar una fila congelada. Ingresa la contraseña con el botón ADMINISTRADOR.";
+        estadoConexion.className = "status warning";
+        abrirModalAdmin();
+        return;
+      }
+
+      try {
+        await update(ref(db, `restockDashboard/summary/${key}`), {
+          congelado: false,
+          actualizadoEn: new Date().toISOString()
+        });
+
+        summaryCache[key] = {
+          ...(summaryCache[key] || {}),
+          congelado: false
+        };
+
+        renderizarResumen();
+
+        estadoConexion.textContent = "Fila del resumen habilitada para edición.";
+        estadoConexion.className = "status warning";
+      } catch (error) {
+        estadoConexion.textContent = "Error al habilitar la fila para edición.";
+        estadoConexion.className = "status error";
+        console.error(error);
+      }
     }
 
     async function guardarResumenFila(key) {
@@ -1936,11 +1985,12 @@
 
       const data = obtenerDatosResumen(fila);
 
-      // Si se está marcando como PEDIDO, congelar la cantidad actual
-      if (data.pedido && !data.cantidadCongelada) {
-        const spanCantidad = fila.querySelector(".cantidad-total-cell");
-        data.cantidadCongelada = spanCantidad ? spanCantidad.textContent.trim() : "";
-      }
+      // Foto de qué filas de origen (persona::id) forman esta fila en el
+      // momento de congelarla. Así, si luego se agregan más piezas del mismo
+      // producto, construirResumen() podrá detectarlas como "nuevas" y
+      // ponerlas en una fila aparte en vez de sumarlas aquí.
+      const grupoActual = ultimoResumenGrupos[key];
+      data.rowIdsCongelados = grupoActual ? grupoActual.rowIds : [];
 
       try {
         await update(ref(db, `restockDashboard/summary/${key}`), {
@@ -1955,15 +2005,11 @@
         };
 
         fila.classList.remove("fila-pendiente");
-        filasDesbloqueadas.delete(key);
 
-        // Re-renderizar para aplicar el estado congelado visualmente
         renderizarResumen();
         actualizarMetricas();
 
-        estadoConexion.textContent = data.pedido
-          ? "✅ Pedido marcado — cantidad congelada correctamente."
-          : "Resumen guardado correctamente.";
+        estadoConexion.textContent = "Resumen guardado correctamente.";
         estadoConexion.className = "status ok";
       } catch (error) {
         estadoConexion.textContent = "Error al guardar resumen.";
@@ -1973,17 +2019,15 @@
     }
 
     async function guardarResumenTodo() {
-      // Guardar filas no congeladas, más las filas congeladas que el
-      // administrador haya desbloqueado explícitamente para edición.
-      const filas = tablaResumen.querySelectorAll(
-        "tr[data-key]:not(.fila-congelada), tr[data-key].fila-desbloqueada"
-      );
+      const filas = tablaResumen.querySelectorAll("tr[data-key]");
       const promesas = [];
-      const keysGuardadas = [];
 
       filas.forEach(fila => {
         const key = fila.dataset.key;
         const data = obtenerDatosResumen(fila);
+
+        const grupoActual = ultimoResumenGrupos[key];
+        data.rowIdsCongelados = grupoActual ? grupoActual.rowIds : [];
 
         promesas.push(
           update(ref(db, `restockDashboard/summary/${key}`), {
@@ -1996,14 +2040,11 @@
           ...(summaryCache[key] || {}),
           ...data
         };
-
-        keysGuardadas.push(key);
       });
 
       try {
         await Promise.all(promesas);
 
-        keysGuardadas.forEach(key => filasDesbloqueadas.delete(key));
         renderizarResumen();
 
         estadoConexion.textContent = "Resumen completo guardado correctamente.";
@@ -2016,23 +2057,16 @@
     }
 
     function obtenerDatosResumen(fila) {
-      const key = fila.dataset.key;
-      const saved = summaryCache[key] || {};
       const inputPrecio = fila.querySelector(".campo-precio-minimo");
       formatearPrecio(inputPrecio);
 
       const esPedido = fila.querySelector(".campo-pedido")?.checked || false;
 
-      // Obtener la cantidad actual mostrada en la celda
-      const spanCantidad = fila.querySelector(".cantidad-total-cell");
-      const cantidadActual = spanCantidad ? spanCantidad.textContent.trim() : "";
-
-      // Preservar cantidadCongelada si ya existía; si acaba de marcarse, tomarla ahora
-      let cantidadCongelada = saved.cantidadCongelada || "";
-      if (esPedido && !cantidadCongelada) {
-        cantidadCongelada = cantidadActual;
-      }
-
+      // "Pedido" y "Pagado" son únicamente etiquetas informativas. Ya NO
+      // congelan ninguna cantidad: el total mostrado en "Suma de todos"
+      // siempre se recalcula en vivo a partir de las filas realmente
+      // capturadas en las pestañas individuales, sin guardar memoria de
+      // valores anteriores.
       return {
         iq: fila.dataset.iq,
         precioMinimo: inputPrecio.value,
@@ -2040,7 +2074,9 @@
         pedido: esPedido,
         pagado: fila.querySelector(".campo-pagado").checked,
         fechaPago: fila.querySelector(".campo-fecha-pago").value,
-        cantidadCongelada
+        // Al guardar, la fila queda congelada (solo lectura). Solo el
+        // administrador puede volver a habilitarla con "Modificar".
+        congelado: true
       };
     }
 
@@ -2059,16 +2095,27 @@
     }
 
     function obtenerNumero(valor) {
-      return parseFloat(
-        String(valor)
-          .replace("IQ", "")
-          .replace("pzs", "")
-          .replace("pz", "")
-          .replace("$", "")
-          .replace("%", "")
-          .replace(",", "")
-          .trim()
-      );
+      let texto = String(valor).trim();
+
+      // Si el valor es un código de producto (p. ej. "IQ30"), NO debe
+      // interpretarse como una cantidad numérica. Antes, parseFloat tomaba
+      // los primeros dígitos tras quitar "IQ" (p. ej. "IQ30" -> 30), lo que
+      // causaba que la cantidad de restock se registrara como 30 piezas por
+      // error cuando el campo de cantidad quedaba contaminado con el código IQ.
+      if (/^IQ\d+$/i.test(texto)) return NaN;
+
+      texto = texto
+        .replace(/^IQ/i, "")
+        .replace(/pzs/gi, "")
+        .replace(/pz/gi, "")
+        .replace(/\$/g, "")
+        .replace(/%/g, "")
+        .replace(/,/g, "")
+        .trim();
+
+      if (texto === "") return NaN;
+
+      return parseFloat(texto);
     }
 
     function formatearCantidad(input) {
